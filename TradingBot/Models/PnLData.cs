@@ -5,8 +5,15 @@ namespace TradingBot.Models
     /// </summary>
     public class PnLData
     {
-        public string Ticker { get; set; } = string.Empty;    // Распознанный тикер
-        public string Direction { get; set; } = string.Empty; // Распознанное направление (Long/Short)
-        public decimal PnL { get; set; }                      // Распознанное значение прибыли/убытка
+        public string Ticker { get; set; }
+        public string Direction { get; set; }
+        public decimal? Leverage { get; set; }
+        public decimal? PnLPercent { get; set; }
+        public decimal? Close { get; set; }
+        public decimal? Open { get; set; }
+        public string UserName { get; set; }
+        public string ReferralCode { get; set; }
+        public DateTime? TradeDate { get; set; }
     }
+
 }
