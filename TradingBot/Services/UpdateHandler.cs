@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using TradingBot.Models;
 using TradingBot.Services;
 using Telegram.Bot;
@@ -32,9 +34,9 @@ namespace TradingBot.Services
         {
             "Тикер:",
             "Направление (Long/Short):",
-            "PnL (прибыль или убыток):",
+            "PnL (прибыль или убыток, например, +552.15):",
             "Open Price (Avg. Open Price):",
-            "Close Price:",
+            "Close Price (Entry):",
             "Stop Loss (SL):",
             "Take Profit (TP):",
             "Объём (Volume):",
@@ -51,9 +53,10 @@ namespace TradingBot.Services
 
         public async Task HandleUpdateAsync(ITelegramBotClient bot, Update update, CancellationToken cancellationToken)
         {
+            long chatId = 0;
             try
             {
-                long chatId = 0;
+                
                 string text = "";
 
                 if (update.Type == UpdateType.Message && update.Message != null)
@@ -62,7 +65,6 @@ namespace TradingBot.Services
                     chatId = message.Chat.Id;
                     text = message.Text?.Trim() ?? "";
 
-                    // ------ 1. Пошаговый ввод/редактирование ------
                     if (_logStates.ContainsKey(chatId))
                     {
                         var state = _logStates[chatId];
@@ -73,12 +75,12 @@ namespace TradingBot.Services
                             case 1: if (!string.IsNullOrWhiteSpace(text)) trade.Ticker = text; break;
                             case 2: if (!string.IsNullOrWhiteSpace(text)) trade.Direction = text; break;
                             case 3: trade.PnL = TryParseDecimal(text); break;
-                            case 4: trade.Open = TryParseNullableDecimal(text); break;
-                            case 5: trade.ClosePrice = TryParseNullableDecimal(text); break;
+                            case 4: trade.OpenPrice = TryParseNullableDecimal(text); break;
+                            case 5: trade.Entry = TryParseNullableDecimal(text); break;
                             case 6: trade.SL = TryParseNullableDecimal(text); break;
                             case 7: trade.TP = TryParseNullableDecimal(text); break;
                             case 8: trade.Volume = TryParseNullableDecimal(text); break;
-                            case 9: trade.Comment = text; break;
+                            case 9: trade.Comment = string.IsNullOrWhiteSpace(text) ? "" : text; break;
                         }
 
                         state.Step++;
@@ -90,24 +92,11 @@ namespace TradingBot.Services
                         else
                         {
                             _logStates.Remove(chatId);
-                            await _repo.AddTradeAsync(trade);
-                            try
-                            {
-                                string notionPageId = await _notionService.CreatePageForTradeAsync(trade);
-                                trade.NotionPageId = notionPageId;
-                                await _repo.UpdateTradeAsync(trade);
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogWarning(ex, "Не удалось отправить сделку в Notion.");
-                                await bot.SendMessage(chatId, "Сделка сохранена локально, но не отправлена в Notion.", cancellationToken: cancellationToken);
-                            }
-                            await bot.SendMessage(chatId, $"Сделка {trade.Ticker} ({trade.Direction}) PnL={trade.PnL} сохранена.", cancellationToken: cancellationToken);
+                            await SaveTradeAsync(trade, chatId, bot, cancellationToken);
                         }
                         return;
                     }
 
-                    // ------ 2. Обработка команд ------
                     if (text.StartsWith("/"))
                     {
                         if (text.Equals("/start", StringComparison.OrdinalIgnoreCase))
@@ -264,7 +253,6 @@ namespace TradingBot.Services
                         }
                     }
 
-                    // ------ 3. Обработка фото (OCR) ------
                     if (message.Type == MessageType.Photo)
                     {
                         var photos = message.Photo;
@@ -293,12 +281,12 @@ namespace TradingBot.Services
                                     var trade = new Trade
                                     {
                                         ChatId = chatId,
-                                        Date = DateTime.Now,
+                                        Date = data.TradeDate ?? DateTime.Now,
                                         Ticker = data.Ticker,
                                         Direction = data.Direction,
                                         PnL = data.PnLPercent ?? 0,
-                                        Open = data.OpenPrice,
-                                        Close = data.ClosePrice,
+                                        OpenPrice = data.Open,
+                                        Entry = data.Close,
                                         SL = null,
                                         TP = null,
                                         Volume = null,
@@ -327,7 +315,6 @@ namespace TradingBot.Services
                         return;
                     }
                 }
-                // ------ 4. Обработка CallbackQuery ------
                 else if (update.Type == UpdateType.CallbackQuery && update.CallbackQuery != null)
                 {
                     var callback = update.CallbackQuery;
@@ -341,19 +328,7 @@ namespace TradingBot.Services
                         {
                             var pendingTrade = _pendingTrades[chatId].Trade;
                             _pendingTrades.Remove(chatId);
-                            await _repo.AddTradeAsync(pendingTrade);
-                            try
-                            {
-                                string notionPageId = await _notionService.CreatePageForTradeAsync(pendingTrade);
-                                pendingTrade.NotionPageId = notionPageId;
-                                await _repo.UpdateTradeAsync(pendingTrade);
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogWarning(ex, " не удалось отправить в Notion.");
-                                await bot.SendMessage(chatId, "Сделка сохранена локально, но не отправлена в Notion.", cancellationToken: cancellationToken);
-                            }
-                            await bot.SendMessage(chatId, $"Сделка {pendingTrade.Ticker} ({pendingTrade.Direction}) PnL={pendingTrade.PnL} сохранена.", cancellationToken: cancellationToken);
+                            await SaveTradeAsync(pendingTrade, chatId, bot, cancellationToken);
                             return;
                         }
                         else if (data == "edit_trade")
@@ -367,7 +342,6 @@ namespace TradingBot.Services
                         }
                     }
 
-                    // Обработка callback-запросов из меню
                     if (data == "stats")
                     {
                         var trades = await _repo.GetTradesAsync(chatId);
@@ -429,18 +403,45 @@ namespace TradingBot.Services
             }
         }
 
-        // ------ Вспомогательные методы ------
+        private async Task SaveTradeAsync(Trade trade, long chatId, ITelegramBotClient bot, CancellationToken cancellationToken)
+        {
+            await _repo.AddTradeAsync(trade);
+            try
+            {
+                string notionPageId = await _notionService.CreatePageForTradeAsync(trade);
+                trade.NotionPageId = notionPageId;
+                await _repo.UpdateTradeAsync(trade);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Не удалось отправить сделку в Notion.");
+                await bot.SendMessage(chatId, "Сделка сохранена локально, но не отправлена в Notion.", cancellationToken: cancellationToken);
+            }
+            await bot.SendMessage(chatId, $"Сделка {trade.Ticker} ({trade.Direction}) PnL={trade.PnL} сохранена.", cancellationToken: cancellationToken);
+        }
+
         private static decimal TryParseDecimal(string text)
         {
-            decimal.TryParse(text.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var result);
-            return result;
+            var match = Regex.Match(text, @"([+-]?\d{1,10}(?:[.,]\d{1,4})?)");
+            if (match.Success)
+            {
+                string numStr = match.Groups[1].Value.Replace(",", ".");
+                if (decimal.TryParse(numStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var result))
+                    return result;
+            }
+            return 0;
         }
 
         private static decimal? TryParseNullableDecimal(string text)
         {
             if (string.IsNullOrEmpty(text) || text == "-") return null;
-            if (decimal.TryParse(text.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var val))
-                return val;
+            var match = Regex.Match(text, @"([+-]?\d{1,10}(?:[.,]\d{1,4})?)");
+            if (match.Success)
+            {
+                string numStr = match.Groups[1].Value.Replace(",", ".");
+                if (decimal.TryParse(numStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var val))
+                    return val;
+            }
             return null;
         }
 
@@ -450,9 +451,9 @@ namespace TradingBot.Services
             {
                 $"Тикер: {t.Ticker ?? ""}",
                 $"Направление: {t.Direction ?? ""}",
-                $"PnL: {t.PnL}",
+                $"PnL: {t.PnL}%",
                 $"Open Price: {t.OpenPrice?.ToString() ?? ""}",
-                $"Close Price: {t.ClosePrice?.ToString() ?? ""}",
+                $"Close Price (Entry): {t.Entry?.ToString() ?? ""}",
                 $"Stop Loss (SL): {t.SL?.ToString() ?? ""}",
                 $"Take Profit (TP): {t.TP?.ToString() ?? ""}",
                 $"Объём: {t.Volume?.ToString() ?? ""}",
