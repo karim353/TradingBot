@@ -9,9 +9,6 @@ using Microsoft.Extensions.Logging;
 
 namespace TradingBot.Services
 {
-    /// <summary>
-    /// Сервис для интеграции с Notion: создание страницы сделки в базе данных Notion.
-    /// </summary>
     public class NotionService
     {
         private readonly HttpClient _httpClient;
@@ -25,13 +22,8 @@ namespace TradingBot.Services
             _logger = logger;
         }
 
-        /// <summary>
-        /// Создаёт новую страницу в базе Notion для переданной сделки.
-        /// Возвращает идентификатор созданной страницы.
-        /// </summary>
         public async Task<string> CreatePageForTradeAsync(Trade trade)
         {
-            // Формируем объект с данными для Notion API
             var newPage = new
             {
                 parent = new { database_id = _databaseId },
@@ -61,7 +53,6 @@ namespace TradingBot.Services
                     _logger.LogError("Notion API вернул ошибку: {0}", errorBody);
                     throw new Exception($"Notion API error: {response.StatusCode}");
                 }
-                // Получаем содержимое ответа и извлекаем ID созданной страницы
                 string responseBody = await response.Content.ReadAsStringAsync();
                 using var doc = JsonDocument.Parse(responseBody);
                 if (doc.RootElement.TryGetProperty("id", out JsonElement idElem))

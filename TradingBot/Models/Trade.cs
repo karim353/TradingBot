@@ -7,13 +7,13 @@ namespace TradingBot.Models
     {
         [Key]
         public int Id { get; set; }
-        public long ChatId { get; set; }
+        public long UserId { get; set; }
         public DateTime Date { get; set; }
         public string Ticker { get; set; } = string.Empty;
         public string Direction { get; set; } = string.Empty;
         public decimal PnL { get; set; }
-        public decimal? Entry { get; set; } // Close Price from PnLData
-        public decimal? OpenPrice { get; set; } // Avg. Open Price from PnLData
+        public decimal? Entry { get; set; }
+        public decimal? OpenPrice { get; set; }
         public decimal? SL { get; set; }
         public decimal? TP { get; set; }
         public decimal? Volume { get; set; }

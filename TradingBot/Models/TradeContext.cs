@@ -2,9 +2,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace TradingBot.Models
 {
-    /// <summary>
-    /// Контекст базы данных для хранения трейдов (SQLite через EF Core).
-    /// </summary>
     public class TradeContext : DbContext
     {
         public TradeContext(DbContextOptions<TradeContext> options) : base(options) { }
@@ -13,10 +10,16 @@ namespace TradingBot.Models
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            var d = modelBuilder.Entity<Trade>();
+            d.Property(p => p.PnL)       .HasColumnType("REAL");
+            d.Property(p => p.Entry)     .HasColumnType("REAL");
+            d.Property(p => p.OpenPrice) .HasColumnType("REAL");
+            d.Property(p => p.SL)        .HasColumnType("REAL");
+            d.Property(p => p.TP)        .HasColumnType("REAL");
+            d.Property(p => p.Volume)    .HasColumnType("REAL");
             base.OnModelCreating(modelBuilder);
-            // Первичный ключ для Trade задаётся автоматически (Id). Добавим индекс по полю ChatId для ускорения запросов по пользователям.
             modelBuilder.Entity<Trade>().HasKey(t => t.Id);
-            modelBuilder.Entity<Trade>().HasIndex(t => t.ChatId);
+            modelBuilder.Entity<Trade>().HasIndex(t => t.UserId);
         }
     }
 }

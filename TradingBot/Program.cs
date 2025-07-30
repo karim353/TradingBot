@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Http; // Добавлено для AddHttpClient
+using Microsoft.Extensions.Caching.Memory;
 using Telegram.Bot;
 using TradingBot.Services;
 using TradingBot.Models;
@@ -34,7 +34,21 @@ var host = Host.CreateDefaultBuilder(args)
             client.DefaultRequestHeaders.Add("Notion-Version", "2022-06-28");
         });
         services.AddScoped<TradeRepository>();
-        services.AddScoped<UpdateHandler>();
+        services.AddSingleton<UIManager>();
+        services.AddMemoryCache();
+
+        services.AddScoped<UpdateHandler>(provider =>
+        {
+            var repo = provider.GetRequiredService<TradeRepository>();
+            var pnlService = provider.GetRequiredService<PnLService>();
+            var notionService = provider.GetRequiredService<NotionService>();
+            var uiManager = provider.GetRequiredService<UIManager>();
+            var logger = provider.GetRequiredService<ILogger<UpdateHandler>>();
+            var cache = provider.GetRequiredService<IMemoryCache>();
+            string sqliteConnectionString = connection;
+            string botId = botToken.Contains(":") ? botToken.Split(':')[0] : "bot";
+            return new UpdateHandler(repo, pnlService, notionService, uiManager, logger, cache, sqliteConnectionString, botId);
+        });
 
         services.AddHostedService<BotService>();
         services.AddHostedService<ReportService>();
@@ -47,10 +61,21 @@ var host = Host.CreateDefaultBuilder(args)
     })
     .Build();
 
+// Выполни миграции (а не EnsureCreated), иначе будут проблемы при обновлении схемы!
 using (var scope = host.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<TradeContext>();
-    db.Database.EnsureCreated();
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<TradeContext>();
+        db.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
+        var logger = loggerFactory.CreateLogger("Program");
+        logger.LogError(ex, "Ошибка при миграции базы данных.");
+        throw;
+    }
 }
 
 await host.RunAsync();
