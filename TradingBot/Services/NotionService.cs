@@ -1,3 +1,4 @@
+// NotionService.cs
 using System;
 using System.Net.Http;
 using System.Text;
@@ -50,8 +51,7 @@ namespace TradingBot.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     string errorBody = await response.Content.ReadAsStringAsync();
-                    _logger.LogError("Notion API вернул ошибку: {0}", errorBody);
-                    throw new Exception($"Notion API error: {response.StatusCode}");
+                    return null; // Возвращаем null при ошибке
                 }
                 string responseBody = await response.Content.ReadAsStringAsync();
                 using var doc = JsonDocument.Parse(responseBody);
@@ -65,7 +65,7 @@ namespace TradingBot.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Не удалось создать страницу в Notion");
-                throw;
+                return null;
             }
         }
     }

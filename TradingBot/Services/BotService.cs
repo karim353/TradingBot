@@ -1,9 +1,11 @@
+// BotService.cs
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Telegram.Bot;
 using Microsoft.Extensions.Logging;
+using Telegram.Bot.Types;
 
 namespace TradingBot.Services
 {
@@ -23,29 +25,36 @@ namespace TradingBot.Services
             _logger = logger;
         }
 
-        protected override Task ExecuteAsync(CancellationToken stoppingToken)
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            // Начинаем приём обновлений от Telegram
+            // Регистрация команд
+            await _botClient.SetMyCommands(new[]
+            {
+                new BotCommand { Command = "start", Description = "🚀 Запуск бота" },
+                new BotCommand { Command = "menu", Description = "📋 Главное меню" }
+            }, cancellationToken: stoppingToken);
+
             _botClient.StartReceiving(
                 // Обработчик входящего обновления
                 async (bot, update, ct) =>
                 {
-                    // Создаём новый scope для обработки (чтобы получить свои экземпляры зависимостей на каждый апдейт)
                     using var scope = _serviceProvider.CreateScope();
                     var handler = scope.ServiceProvider.GetRequiredService<UpdateHandler>();
                     await handler.HandleUpdateAsync(bot, update, ct);
                 },
                 // Обработчик ошибок при получении обновлений
-                async (bot, exception, ct) =>
+                (bot, exception, ct) =>
                 {
                     _logger.LogError(exception, "Ошибка при получении обновления от Telegram.");
-                    // Здесь можно логировать ошибки, повторно запускать получение и пр.
+                    return Task.CompletedTask;
                 },
                 cancellationToken: stoppingToken
             );
 
             _logger.LogInformation("Telegram bot started receiving updates.");
-            return Task.CompletedTask; // сервис продолжает работать, StartReceiving использует фоновые задачи
+
+            // Держим сервис активным, пока не будет отмены.
+            await Task.Delay(Timeout.Infinite, stoppingToken);
         }
     }
 }

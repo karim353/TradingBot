@@ -1,3 +1,5 @@
+// UpdateHandler.cs
+
 using System;
 using System.IO;
 using System.Linq;
@@ -18,6 +20,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
 using ScottPlot;
 using System.Text;
+using SkiaSharp;
 
 namespace TradingBot.Services
 {
@@ -39,24 +42,17 @@ namespace TradingBot.Services
             public string Action { get; set; }
             public int MessageId { get; set; }
             public string Language { get; set; } = "ru";
-
             public string TradeId { get; set; }
             public DateTime LastInputTime { get; set; } = DateTime.UtcNow;
             public int ErrorCount { get; set; } = 0;
         }
 
         private static readonly TimeSpan PendingTradeTimeout = TimeSpan.FromHours(24);
-        private static readonly TimeSpan AutoReturnDelay = TimeSpan.FromSeconds(3);
-        private const int MaxRequestsPerMinute = 60;
+        private static readonly TimeSpan AutoReturnDelay = TimeSpan.FromMinutes(5);
+        private const int MaxRequestsPerMinute = 20;
 
-        public UpdateHandler(
-            TradeRepository repo,
-            PnLService pnlService,
-            NotionService notionService,
-            UIManager uiManager,
-            ILogger<UpdateHandler> logger,
-            IMemoryCache cache,
-            string sqliteConnectionString,
+        public UpdateHandler(TradeRepository repo, PnLService pnlService, NotionService notionService,
+            UIManager uiManager, ILogger<UpdateHandler> logger, IMemoryCache cache, string sqliteConnectionString,
             string botId)
         {
             _repo = repo ?? throw new ArgumentNullException(nameof(repo));
@@ -65,10 +61,26 @@ namespace TradingBot.Services
             _uiManager = uiManager ?? throw new ArgumentNullException(nameof(uiManager));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _cache = cache ?? throw new ArgumentNullException(nameof(cache));
-            _sqliteConnectionString =
-                sqliteConnectionString ?? throw new ArgumentNullException(nameof(sqliteConnectionString));
             _botId = botId ?? throw new ArgumentNullException(nameof(botId));
-            _logger.LogInformation($"📈 UpdateHandler initialized (BotId={_botId})");
+            if (string.IsNullOrWhiteSpace(sqliteConnectionString))
+            {
+                throw new ArgumentNullException(nameof(sqliteConnectionString),
+                    "SQLite connection string cannot be null or empty.");
+            }
+
+            try
+            {
+                var builder = new SqliteConnectionStringBuilder(sqliteConnectionString);
+                _sqliteConnectionString = builder.ConnectionString;
+            }
+            catch (Exception ex)
+            {
+                throw new ArgumentException($"Invalid SQLite connection string format: {sqliteConnectionString}",
+                    nameof(sqliteConnectionString), ex);
+            }
+
+            _logger.LogInformation(
+                $"📈 UpdateHandler initialized (BotId={_botId}, ConnectionString={_sqliteConnectionString})");
             InitializeDatabaseAsync().GetAwaiter().GetResult();
         }
 
@@ -100,14 +112,14 @@ namespace TradingBot.Services
                         UserId INTEGER NOT NULL,
                         SettingsJson TEXT NOT NULL,
                         PRIMARY KEY (BotId, UserId)
-                    );";
+                    );
+                ";
                 await command.ExecuteNonQueryAsync();
                 _logger.LogInformation("📊 Database initialized (PendingTrades, UserStates, UserSettings)");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error initializing database");
-                throw;
+                _logger.LogError(ex, "Database initialization failed");
             }
         }
 
@@ -124,7 +136,6 @@ namespace TradingBot.Services
             command.Parameters.AddWithValue("$userId", userId);
             command.Parameters.AddWithValue("$stateJson", JsonSerializer.Serialize(state));
             await command.ExecuteNonQueryAsync();
-            _logger.LogInformation($"💾 Saved user state (UserId={userId}, Action={state.Action}, Step={state.Step})");
         }
 
         private async Task<UserState?> GetUserStateAsync(long userId)
@@ -146,13 +157,19 @@ namespace TradingBot.Services
             if (await reader.ReadAsync())
             {
                 string stateJson = reader.GetString(0);
-                var state = JsonSerializer.Deserialize<UserState>(stateJson);
-                if (state != null)
+                try
                 {
-                    _cache.Set($"state_{userId}", state, TimeSpan.FromMinutes(30));
+                    var state = JsonSerializer.Deserialize<UserState>(stateJson);
+                    if (state != null)
+                    {
+                        _cache.Set($"state_{userId}", state, TimeSpan.FromMinutes(30));
+                        return state;
+                    }
                 }
-
-                return state;
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, $"Failed to deserialize UserState for UserId={userId}");
+                }
             }
 
             return null;
@@ -192,14 +209,34 @@ namespace TradingBot.Services
             if (await reader.ReadAsync())
             {
                 string settingsJson = reader.GetString(0);
-                var settings = JsonSerializer.Deserialize<UserSettings>(settingsJson) ?? new UserSettings();
-                _cache.Set($"settings_{userId}", settings, TimeSpan.FromMinutes(30));
-                return settings;
+                try
+                {
+                    var settings = JsonSerializer.Deserialize<UserSettings>(settingsJson);
+                    if (settings != null)
+                    {
+                        _cache.Set($"settings_{userId}", settings, TimeSpan.FromMinutes(30));
+                        return settings;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, $"Failed to deserialize UserSettings for UserId={userId}");
+                }
             }
 
-            var defaultSettings = new UserSettings();
-            await SaveUserSettingsAsync(userId, defaultSettings);
-            return defaultSettings;
+            var newSettings = new UserSettings();
+            _cache.Set($"settings_{userId}", newSettings, TimeSpan.FromMinutes(30));
+            using var insertConn = new SqliteConnection(_sqliteConnectionString);
+            await insertConn.OpenAsync();
+            var insertCmd = insertConn.CreateCommand();
+            insertCmd.CommandText = @"
+                INSERT OR REPLACE INTO UserSettings (BotId, UserId, SettingsJson)
+                VALUES ($botId, $userId, $json)";
+            insertCmd.Parameters.AddWithValue("$botId", _botId);
+            insertCmd.Parameters.AddWithValue("$userId", userId);
+            insertCmd.Parameters.AddWithValue("$json", JsonSerializer.Serialize(newSettings));
+            await insertCmd.ExecuteNonQueryAsync();
+            return newSettings;
         }
 
         private async Task SaveUserSettingsAsync(long userId, UserSettings settings)
@@ -207,14 +244,14 @@ namespace TradingBot.Services
             _cache.Set($"settings_{userId}", settings, TimeSpan.FromMinutes(30));
             using var connection = new SqliteConnection(_sqliteConnectionString);
             await connection.OpenAsync();
-            var cmd = connection.CreateCommand();
-            cmd.CommandText = @"
+            var command = connection.CreateCommand();
+            command.CommandText = @"
                 INSERT OR REPLACE INTO UserSettings (BotId, UserId, SettingsJson)
                 VALUES ($botId, $userId, $json)";
-            cmd.Parameters.AddWithValue("$botId", _botId);
-            cmd.Parameters.AddWithValue("$userId", userId);
-            cmd.Parameters.AddWithValue("$json", JsonSerializer.Serialize(settings));
-            await cmd.ExecuteNonQueryAsync();
+            command.Parameters.AddWithValue("$botId", _botId);
+            command.Parameters.AddWithValue("$userId", userId);
+            command.Parameters.AddWithValue("$json", JsonSerializer.Serialize(settings));
+            await command.ExecuteNonQueryAsync();
         }
 
         private async Task SavePendingTradeAsync(long userId, string tradeId, int messageId, Trade trade)
@@ -231,9 +268,9 @@ namespace TradingBot.Services
             command.Parameters.AddWithValue("$messageId", messageId);
             command.Parameters.AddWithValue("$tradeJson", JsonSerializer.Serialize(trade));
             command.Parameters.AddWithValue("$createdAt", DateTime.UtcNow.ToString("o"));
-            await command.ExecuteNonQueryAsync();
             _logger.LogInformation(
                 $"💰 Trade saved in PendingTrades (UserId={userId}, TradeId={tradeId}, Ticker={trade.Ticker}, PnL={trade.PnL})");
+            await command.ExecuteNonQueryAsync();
         }
 
         private async Task<(Trade Trade, int MessageId, DateTime CreatedAt)?> GetPendingTradeByTradeIdAsync(long userId,
@@ -252,12 +289,19 @@ namespace TradingBot.Services
             if (await reader.ReadAsync())
             {
                 string tradeJson = reader.GetString(0);
-                int messageId = reader.GetInt32(1);
-                DateTime createdAt = DateTime.Parse(reader.GetString(2), null, DateTimeStyles.RoundtripKind);
-                var trade = JsonSerializer.Deserialize<Trade>(tradeJson);
-                if (trade != null)
+                int msgId = reader.GetInt32(1);
+                DateTime createdAt = DateTime.Parse(reader.GetString(2));
+                try
                 {
-                    return (trade, messageId, createdAt);
+                    var trade = JsonSerializer.Deserialize<Trade>(tradeJson);
+                    if (trade != null)
+                    {
+                        return (trade, msgId, createdAt);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, $"Failed to deserialize pending Trade for TradeId={tradeId}");
                 }
             }
 
@@ -283,10 +327,10 @@ namespace TradingBot.Services
             GetPendingTradesForUserAsync(long userId, int page, int pageSize = 5)
         {
             var result = new List<(string, Trade, int, DateTime)>();
+            int offset = (page - 1) * pageSize;
             using var connection = new SqliteConnection(_sqliteConnectionString);
             await connection.OpenAsync();
             var command = connection.CreateCommand();
-            int offset = (page - 1) * pageSize;
             command.CommandText = @"
                 SELECT TradeId, TradeJson, MessageId, CreatedAt FROM PendingTrades
                 WHERE BotId = $botId AND UserId = $userId
@@ -302,96 +346,23 @@ namespace TradingBot.Services
                 string tradeId = reader.GetString(0);
                 string tradeJson = reader.GetString(1);
                 int messageId = reader.GetInt32(2);
-                DateTime createdAt = DateTime.Parse(reader.GetString(3), null, DateTimeStyles.RoundtripKind);
-                var trade = JsonSerializer.Deserialize<Trade>(tradeJson);
-                if (trade != null)
+                DateTime createdAt = DateTime.Parse(reader.GetString(3));
+                try
                 {
-                    result.Add((tradeId, trade, messageId, createdAt));
+                    var trade = JsonSerializer.Deserialize<Trade>(tradeJson);
+                    if (trade != null)
+                    {
+                        result.Add((tradeId, trade, messageId, createdAt));
+                    }
+                }
+                catch
+                {
+                    /* ignore deserialization errors */
                 }
             }
 
             return result;
         }
-
-        private async Task HandleImageAsync(
-            ITelegramBotClient bot,
-            Message message,
-            long chatId,
-            long userId,
-            UserSettings settings,
-            CancellationToken ct)
-        {
-            string fileId = message.Photo?.Last().FileId
-                            ?? message.Document!.FileId;
-
-            _logger.LogInformation($"📸 OCR start for UserId={userId}, fileId={fileId}");
-            try
-            {
-                var fileInfo = await bot.GetFile(fileId, ct);
-                if (string.IsNullOrEmpty(fileInfo.FilePath))
-                {
-                    await bot.SendMessage(chatId, "❌ Не удалось получить изображение.",
-                        replyMarkup: _uiManager.GetErrorKeyboard(settings), cancellationToken: ct);
-                    return;
-                }
-
-                await using var ms = new MemoryStream();
-                await bot.DownloadFile(fileInfo.FilePath, ms, ct);
-                ms.Position = 0;
-
-                var ocr = _pnlService.ExtractFromImage(ms);
-                _logger.LogInformation($"📊 OCR: {JsonSerializer.Serialize(ocr)}");
-
-                string tradeId = Guid.NewGuid().ToString();
-                var trade = new Trade
-                {
-                    UserId = userId,
-                    Date = ocr.TradeDate ?? DateTime.Now,
-                    Ticker = ocr.Ticker ?? "",
-                    Direction = ocr.Direction ?? "",
-                    PnL = ocr.PnLPercent ?? 0,
-                    OpenPrice = ocr.Open,
-                    Entry = ocr.Close
-                };
-
-                // если распознано не всё → продолжаем руками
-                if (string.IsNullOrEmpty(trade.Ticker) ||
-                    string.IsNullOrEmpty(trade.Direction) ||
-                    ocr.PnLPercent == null)
-                {
-                    var st = new UserState
-                    {
-                        Action = "new_trade",
-                        Step = string.IsNullOrEmpty(trade.Ticker) ? 1 :
-                            string.IsNullOrEmpty(trade.Direction) ? 2 : 3,
-                        Trade = trade,
-                        Language = settings.Language,
-                        TradeId = tradeId
-                    };
-
-                    var (txt, kb) =
-                        _uiManager.GetTradeInputScreen(trade, st.Step, settings, tradeId);
-
-                    var sent = await bot.SendMessage(chatId, txt, replyMarkup: kb, cancellationToken: ct);
-                    st.MessageId = sent.MessageId;
-                    await SaveUserStateAsync(userId, st);
-                }
-                else
-                {
-                    var (txt, kb) = _uiManager.GetTradeConfirmationScreen(trade, tradeId, settings);
-                    var sent = await bot.SendMessage(chatId, txt, replyMarkup: kb, cancellationToken: ct);
-                    await SavePendingTradeAsync(userId, tradeId, sent.MessageId, trade);
-                    await UpdateRecentSettingsAsync(userId, trade, settings);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"OCR error for UserId={userId}");
-                await bot.SendMessage(chatId, "❌ Ошибка при обработке изображения.",
-                    replyMarkup: _uiManager.GetErrorKeyboard(settings), cancellationToken: ct);
-            }
-        }
-
 
         private async Task<int> GetPendingTradesCountAsync(long userId)
         {
@@ -420,10 +391,293 @@ namespace TradingBot.Services
             int rows = await command.ExecuteNonQueryAsync();
             if (rows > 0)
             {
-                _logger.LogInformation($"🧹 Cleaned {rows} expired pending trades");
+                _logger.LogInformation($"🕒 Cleaned up {rows} expired pending trades");
             }
         }
 
+        /*private async Task SendMainMenuAsync(long chatId, long userId, ITelegramBotClient bot, CancellationToken ct)
+        {
+            var settings = await GetUserSettingsAsync(userId);
+            var allTrades = await _repo.GetTradesAsync(userId);
+            int totalTrades = allTrades.Count;
+            decimal totalPnL = allTrades.Any() ? allTrades.Sum(t => t.PnL) : 0;
+            int profitableCount = allTrades.Count(t => t.PnL > 0);
+            int winRate = totalTrades > 0 ? (int)((double)profitableCount / totalTrades * 100) : 0;
+            int tradesToday = (await _repo.GetTradesInDateRangeAsync(userId, DateTime.Today, DateTime.Now)).Count;
+            string mainText = _uiManager.GetText("main_menu", settings.Language, tradesToday, totalPnL.ToString("F2"), winRate);
+
+            using var stream = new FileStream("banner.png", FileMode.Open, FileAccess.Read); // Укажите путь к изображению
+            await bot.SendPhoto(chatId, InputFile.FromStream(stream), caption: mainText, replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: ct);
+            _logger.LogInformation($"🏠 Sent main menu with banner to UserId={userId}");
+        }*/
+        private async Task SendMainMenuAsync(long chatId, long userId, ITelegramBotClient bot, CancellationToken ct)
+        {
+            var settings = await GetUserSettingsAsync(userId);
+            var allTrades = await _repo.GetTradesAsync(userId);
+            int totalTrades = allTrades.Count;
+            decimal totalPnL = allTrades.Any() ? allTrades.Sum(t => t.PnL) : 0;
+            int profitableCount = allTrades.Count(t => t.PnL > 0);
+            int winRate = totalTrades > 0 ? (int)((double)profitableCount / totalTrades * 100) : 0;
+            int tradesToday = (await _repo.GetTradesInDateRangeAsync(userId, DateTime.Today, DateTime.Now)).Count;
+
+            string mainText = _uiManager.GetText("main_menu", settings.Language, tradesToday, totalPnL.ToString("F2"),
+                winRate);
+
+            using var stream = new FileStream("banner.gif", FileMode.Open, FileAccess.Read); // Путь к GIF-анимации
+            await bot.SendAnimation(
+                chatId,
+                InputFile.FromStream(stream, "banner.gif"),
+                caption: mainText,
+                replyMarkup: _uiManager.GetMainMenu(settings),
+                cancellationToken: ct
+            );
+
+            _logger.LogInformation($"🏠 Sent main menu with GIF banner to UserId={userId}");
+        }
+
+        private async Task SendStatisticsAsync(long chatId, long userId, ITelegramBotClient bot, UserSettings settings, CancellationToken ct)
+{
+    var trades = await _repo.GetTradesAsync(userId);
+    if (!trades.Any())
+    {
+        await bot.SendMessage(chatId, "📉 Нет сделок для статистики.",
+            replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: ct);
+        return;
+    }
+
+    int totalTrades = trades.Count;
+    decimal totalPnL = trades.Sum(t => t.PnL);
+    decimal avgPnL = totalTrades > 0 ? totalPnL / totalTrades : 0;
+    int profitable = trades.Count(t => t.PnL > 0);
+    int winRate = totalTrades > 0 ? (int)((double)profitable / totalTrades * 100) : 0;
+    string statsText = _uiManager.GetText("stats_result", settings.Language, "за всё время", totalTrades,
+        totalPnL.ToString("F2"), profitable, totalTrades - profitable, winRate);
+
+    // ==== Стиль TradingView black & white ====
+    int width = 950, height = 540;
+    float marginLeft = 70, marginRight = 40, marginTop = 40, marginBottom = 50;
+
+    string tmpPng = Path.Combine(Path.GetTempPath(), $"equity_{userId}_{Guid.NewGuid():N}.png");
+
+    var ys = new List<float>();
+    trades.Sort((a, b) => a.Date.CompareTo(b.Date));
+    for (int i = 0; i < trades.Count; i++)
+    {
+        ys.Add((float)trades[i].PnL);
+    }
+    int N = ys.Count;
+    var xs = Enumerable.Range(0, N).Select(i => marginLeft + (width - marginLeft - marginRight) * i / Math.Max(N - 1, 1)).ToArray();
+
+    // min/max, шаг сетки
+    float minY = ys.Min(), maxY = ys.Max();
+    if (Math.Abs(maxY - minY) < 1e-3f) { minY -= 1; maxY += 1; }
+    float gridStep = (float)Math.Pow(10, Math.Floor(Math.Log10((maxY - minY) / 5.0)));
+    float gridMin = (float)Math.Floor(minY / gridStep) * gridStep;
+    float gridMax = (float)Math.Ceiling(maxY / gridStep) * gridStep;
+
+    using (var surface = SKSurface.Create(new SKImageInfo(width, height)))
+    {
+        var canvas = surface.Canvas;
+
+        // Тёмный фон
+        canvas.Clear(SKColor.Parse("#101113"));
+
+        // Сетка белая, но полупрозрачная (как на скрине)
+        using (var gridPaint = new SKPaint
+        {
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 1,
+            Color = new SKColor(255, 255, 255, 45),
+            IsAntialias = true
+        })
+        {
+            // Вертикальные (по X, нечасто)
+            int xDivs = Math.Min(N, 8);
+            for (int i = 0; i <= xDivs; i++)
+            {
+                float x = marginLeft + (width - marginLeft - marginRight) * i / xDivs;
+                canvas.DrawLine(x, marginTop, x, height - marginBottom, gridPaint);
+            }
+            // Горизонтальные (по Y)
+            for (float yVal = gridMin; yVal <= gridMax + 0.001f; yVal += gridStep)
+            {
+                float y = height - marginBottom - (yVal - minY) / (maxY - minY) * (height - marginTop - marginBottom);
+                canvas.DrawLine(marginLeft, y, width - marginRight, y, gridPaint);
+            }
+        }
+
+        // Оси (ярко-белые)
+        using (var axisPaint = new SKPaint
+        {
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 2,
+            Color = SKColors.White,
+            IsAntialias = true
+        })
+        {
+            canvas.DrawLine(marginLeft, marginTop, marginLeft, height - marginBottom, axisPaint);
+            canvas.DrawLine(marginLeft, height - marginBottom, width - marginRight, height - marginBottom, axisPaint);
+        }
+
+        // Деления и подписи по Y (серый/белый)
+        using (var yLabelPaint = new SKPaint
+        {
+            Color = SKColor.FromHsv(0, 0, 90), // светло-серый
+            TextSize = 19,
+            Typeface = SKTypeface.FromFamilyName("Arial"),
+            IsAntialias = true
+        })
+        {
+            for (float yVal = gridMin; yVal <= gridMax + 0.001f; yVal += gridStep)
+            {
+                float y = height - marginBottom - (yVal - minY) / (maxY - minY) * (height - marginTop - marginBottom);
+                canvas.DrawText($"{yVal:F2}", 19, y + 7, yLabelPaint);
+            }
+        }
+
+        // Деления по X (каждая 10я сделка)
+        using (var xLabelPaint = new SKPaint
+        {
+            Color = SKColor.FromHsv(0, 0, 85),
+            TextSize = 16,
+            Typeface = SKTypeface.FromFamilyName("Arial"),
+            IsAntialias = true
+        })
+        {
+            int every = Math.Max(N / 10, 1);
+            for (int i = 0; i < N; i += every)
+            {
+                float x = xs[i];
+                canvas.DrawText((i + 1).ToString(), x - 10, height - marginBottom + 23, xLabelPaint);
+            }
+        }
+
+        // Основная линия equity (ярко-белая)
+        using (var linePaint = new SKPaint
+        {
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 2.7f,
+            Color = SKColors.White,
+            IsAntialias = true,
+            StrokeCap = SKStrokeCap.Round
+        })
+        using (var path = new SKPath())
+        {
+            path.MoveTo(xs[0], height - marginBottom - (ys[0] - minY) / (maxY - minY) * (height - marginTop - marginBottom));
+            for (int i = 1; i < N; i++)
+                path.LineTo(xs[i], height - marginBottom - (ys[i] - minY) / (maxY - minY) * (height - marginTop - marginBottom));
+            canvas.DrawPath(path, linePaint);
+        }
+
+        // Толстая подложка (имитация свечения)
+        using (var glowPaint = new SKPaint
+        {
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 10,
+            Color = new SKColor(255, 255, 255, 24),
+            IsAntialias = true
+        })
+        using (var path = new SKPath())
+        {
+            path.MoveTo(xs[0], height - marginBottom - (ys[0] - minY) / (maxY - minY) * (height - marginTop - marginBottom));
+            for (int i = 1; i < N; i++)
+                path.LineTo(xs[i], height - marginBottom - (ys[i] - minY) / (maxY - minY) * (height - marginTop - marginBottom));
+            canvas.DrawPath(path, glowPaint);
+        }
+
+        // Маркеры (начала и конца) — круги
+        using (var dotPaint = new SKPaint
+        {
+            Style = SKPaintStyle.Fill,
+            Color = SKColors.White,
+            IsAntialias = true
+        })
+        {
+            float y1 = height - marginBottom - (ys[0] - minY) / (maxY - minY) * (height - marginTop - marginBottom);
+            float yN = height - marginBottom - (ys[N - 1] - minY) / (maxY - minY) * (height - marginTop - marginBottom);
+            canvas.DrawCircle(xs[0], y1, 5, dotPaint);
+            canvas.DrawCircle(xs[N - 1], yN, 7, dotPaint);
+        }
+
+        // (по желанию) High/Low — мелкие горизонтальные полоски
+        int idxMax = ys.IndexOf(ys.Max());
+        int idxMin = ys.IndexOf(ys.Min());
+        float yMax = height - marginBottom - (ys[idxMax] - minY) / (maxY - minY) * (height - marginTop - marginBottom);
+        float yMin = height - marginBottom - (ys[idxMin] - minY) / (maxY - minY) * (height - marginTop - marginBottom);
+        using (var hiPaint = new SKPaint { Color = SKColors.White, StrokeWidth = 4, Style = SKPaintStyle.Stroke, IsAntialias = true })
+        {
+            canvas.DrawLine(xs[idxMax] - 12, yMax, xs[idxMax] + 12, yMax, hiPaint);
+            canvas.DrawLine(xs[idxMin] - 12, yMin, xs[idxMin] + 12, yMin, hiPaint);
+        }
+
+        // Минималистичный заголовок (маленьким белым)
+        using (var titlePaint = new SKPaint
+        {
+            Color = SKColor.FromHsv(0, 0, 90),
+            TextSize = 21,
+            Typeface = SKTypeface.FromFamilyName("Arial"),
+            IsAntialias = true
+        })
+            //canvas.DrawText("TradingView Equity Curve", marginLeft + 8, marginTop + 3, titlePaint);
+
+        // Подписи осей
+        using (var axisPaint = new SKPaint
+        {
+            Color = SKColor.FromHsv(0, 0, 90),
+            TextSize = 17,
+            IsAntialias = true
+        })
+        {
+            canvas.DrawText("Trades", width / 2 - 27, height - 12, axisPaint);
+            canvas.Save();
+            canvas.RotateDegrees(-90, 22, height / 2 + 48);
+            canvas.DrawText("PnL %", 22, height / 2 + 48, axisPaint);
+            canvas.Restore();
+        }
+
+        // Сохраняем в PNG
+        using var img = surface.Snapshot();
+        using var data = img.Encode(SKEncodedImageFormat.Png, 100);
+        using var stream = File.OpenWrite(tmpPng);
+        data.SaveTo(stream);
+    }
+
+    using var fs = new FileStream(tmpPng, FileMode.Open, FileAccess.Read);
+    await bot.SendPhoto(chatId, InputFile.FromStream(fs), caption: statsText,
+        replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: ct);
+    File.Delete(tmpPng);
+}
+
+        private async Task SendHistoryAsync(long chatId, long userId, ITelegramBotClient bot, UserSettings settings,
+            CancellationToken ct, int page)
+        {
+            var trades = await _repo.GetTradesAsync(userId);
+            trades.Sort((a, b) => b.Date.CompareTo(a.Date));
+            int pageSize = 5;
+            var pageTrades = trades.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            var (historyText, historyKeyboard) = _uiManager.GetHistoryScreen(pageTrades, page, "all", "none", settings);
+            await bot.SendMessage(chatId, historyText, replyMarkup: historyKeyboard, cancellationToken: ct);
+        }
+
+        private async Task SendUserProfileAsync(long chatId, long userId, ITelegramBotClient bot, UserSettings settings,
+            CancellationToken ct)
+        {
+            var user = await bot.GetChat(chatId, ct);
+            var trades = await _repo.GetTradesAsync(userId);
+            int totalTrades = trades.Count;
+            decimal totalPnL = trades.Any() ? trades.Sum(t => t.PnL) : 0;
+            decimal avgPnL = totalTrades > 0 ? totalPnL / totalTrades : 0;
+            string profileText = $"👤 Профиль:\n" +
+                                 $"Имя: {user.FirstName} {user.LastName}\n" +
+                                 $"Telegram ID: {userId}\n" +
+                                 $"Сделок: {totalTrades}\n" +
+                                 $"Средний PnL: {avgPnL:F2}%\n" +
+                                 $"Язык: {(settings.Language == "ru" ? "Русский" : "English")}\n" +
+                                 $"Уведомления: {(settings.NotificationsEnabled ? "Вкл" : "Выкл")}\n" +
+                                 $"Избранные тикеры: {(settings.FavoriteTickers.Any() ? string.Join(", ", settings.FavoriteTickers) : "Нет")}";
+            await bot.SendMessage(chatId, profileText, replyMarkup: _uiManager.GetMainMenu(settings),
+                cancellationToken: ct);
+        }
 
         public async Task HandleUpdateAsync(ITelegramBotClient bot, Update update, CancellationToken cancellationToken)
         {
@@ -441,33 +695,108 @@ namespace TradingBot.Services
                     _logger.LogInformation(
                         $"📩 Message from UserId={userId}, ChatId={chatId}: {(string.IsNullOrEmpty(text) ? "[non‑text]" : text)}");
 
-                    // ⚙ настройки / состояние
                     var settings = await GetUserSettingsAsync(userId);
                     var state = await GetUserStateAsync(userId) ?? new UserState { Language = settings.Language };
 
-                    /* ─────────────────────────────  ОБРАБОТКА ИЗОБРАЖЕНИЯ  ───────────────────────────── */
-                    if ((message.Photo?.Any() == true) ||
-                        (message.Document != null && (message.Document.MimeType?.StartsWith("image/") ?? false)))
+                    // Обработка изображения (скриншота PnL)
+                    if ((message.Photo?.Any() == true) || (message.Document != null &&
+                                                           (message.Document.MimeType?.StartsWith("image/") ?? false)))
                     {
-                        await HandleImageAsync(bot, message, chatId, userId, settings, cancellationToken);
-                        return; // ⬅ ни одного меню после фото
-                    }
-                    /* ─────────────────────────  КОНЕЦ ОБРАБОТКИ ИЗОБРАЖЕНИЯ  ────────────────────────── */
-
-                    /* --- rate‑limit & прочее, как было --- */
-                    string rlKey = $"rate_limit_{userId}";
-                    if (_cache.TryGetValue(rlKey, out int req))
-                    {
-                        if (req >= MaxRequestsPerMinute)
+                        _logger.LogInformation($"📸 Processing image from UserId={userId}");
+                        try
                         {
-                            await bot.SendMessage(chatId, "⏳ Слишком много запросов. Попробуйте позже.",
+                            var fileInfo = await bot.GetFile(message.Photo?.Last().FileId ?? message.Document!.FileId,
+                                cancellationToken);
+                            if (string.IsNullOrEmpty(fileInfo.FilePath))
+                            {
+                                await bot.SendMessage(chatId, "❌ Не удалось получить файл изображения.",
+                                    replyMarkup: _uiManager.GetErrorKeyboard(settings),
+                                    cancellationToken: cancellationToken);
+                                return;
+                            }
+
+                            await using var stream = new MemoryStream();
+                            await bot.DownloadFile(fileInfo.FilePath, stream, cancellationToken);
+                            stream.Position = 0;
+
+                            var data = _pnlService.ExtractFromImage(stream);
+                            _logger.LogInformation(
+                                $"📊 OCR result: Ticker={data.Ticker}, Direction={data.Direction}, PnL={data.PnLPercent}");
+
+                            string tradeId = Guid.NewGuid().ToString();
+                            var trade = new Trade
+                            {
+                                UserId = userId,
+                                Date = data.TradeDate ?? DateTime.Now,
+                                Ticker = data.Ticker ?? "",
+                                Direction = data.Direction ?? "",
+                                PnL = data.PnLPercent ?? 0,
+                                OpenPrice = data.Open,
+                                Entry = data.Close
+                            };
+
+                            if (string.IsNullOrEmpty(trade.Ticker) || string.IsNullOrEmpty(trade.Direction) ||
+                                data.PnLPercent == null)
+                            {
+                                var newState = new UserState
+                                {
+                                    Action = "new_trade",
+                                    Step = string.IsNullOrEmpty(trade.Ticker) ? 1 :
+                                        string.IsNullOrEmpty(trade.Direction) ? 2 : 3,
+                                    Trade = trade,
+                                    Language = settings.Language,
+                                    TradeId = tradeId
+                                };
+                                var (nextTxt, nextKb) =
+                                    _uiManager.GetTradeInputScreen(trade, newState.Step, settings, tradeId);
+                                var msg = await bot.SendMessage(chatId, nextTxt, replyMarkup: nextKb,
+                                    cancellationToken: cancellationToken);
+                                newState.MessageId = msg.MessageId;
+                                await SaveUserStateAsync(userId, newState);
+                            }
+                            else
+                            {
+                                var (confTxt, confKb) = _uiManager.GetTradeConfirmationScreen(trade, tradeId, settings);
+                                var confMsg = await bot.SendMessage(chatId, confTxt, replyMarkup: confKb,
+                                    cancellationToken: cancellationToken);
+                                await SavePendingTradeAsync(userId, tradeId, confMsg.MessageId, trade);
+                                await UpdateRecentSettingsAsync(userId, trade, settings);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, $"Error processing image for UserId={userId}");
+                            await bot.SendMessage(chatId, "❌ Ошибка при обработке изображения.",
+                                replyMarkup: _uiManager.GetErrorKeyboard(settings),
                                 cancellationToken: cancellationToken);
-                            return;
                         }
 
-                        _cache.Set(rlKey, req + 1, TimeSpan.FromMinutes(1));
+                        return;
                     }
-                    else _cache.Set(rlKey, 1, TimeSpan.FromMinutes(1));
+
+                    // Лимит частоты запросов
+                    string rlKey = $"rate_limit_{userId}";
+                    if (_cache.TryGetValue(rlKey, out int req) && req >= MaxRequestsPerMinute)
+                    {
+                        await bot.SendMessage(chatId, "⏳ Слишком много запросов. Попробуйте позже.",
+                            cancellationToken: cancellationToken);
+                        return;
+                    }
+
+                    _cache.Set(rlKey, (req > 0 ? req : 0) + 1, TimeSpan.FromMinutes(1));
+
+                    if (text == "/me")
+                    {
+                        await SendUserProfileAsync(chatId, userId, bot, settings, cancellationToken);
+                        return;
+                    }
+
+                    if (text == "/menu")
+                    {
+                        await DeleteUserStateAsync(userId); // Очищаем состояние, если оно есть
+                        await SendMainMenuAsync(chatId, userId, bot, cancellationToken);
+                        return;
+                    }
 
 
                     if (text == "/start")
@@ -475,8 +804,18 @@ namespace TradingBot.Services
                         if (_cache.TryGetValue($"seen_tutorial_{userId}", out bool _))
                         {
                             await DeleteUserStateAsync(userId);
-                            await bot.SendMessage(chatId, $"📈 Добро пожаловать в главное меню!",
-                                replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: cancellationToken);
+                            var allTrades = await _repo.GetTradesAsync(userId);
+                            int totalTrades = allTrades.Count;
+                            decimal totalPnL = 0;
+                            if (allTrades.Count > 0) totalPnL = allTrades.Sum(t => t.PnL);
+                            int profitableCount = allTrades.Count(t => t.PnL > 0);
+                            int winRate = totalTrades > 0 ? (int)((double)profitableCount / totalTrades * 100) : 0;
+                            int tradesToday =
+                                (await _repo.GetTradesInDateRangeAsync(userId, DateTime.Today, DateTime.Now)).Count;
+                            string mainText = _uiManager.GetText("main_menu", settings.Language, tradesToday,
+                                totalPnL.ToString("F2"), winRate);
+                            await bot.SendMessage(chatId, mainText, replyMarkup: _uiManager.GetMainMenu(settings),
+                                cancellationToken: cancellationToken);
                             return;
                         }
 
@@ -511,94 +850,7 @@ namespace TradingBot.Services
                         return;
                     }
 
-                    // ─── ОБРАБОТКА ИЗОБРАЖЕНИЯ (photo ИЛИ document‑image) ───────────────────────
-                    if ((message.Photo?.Any() == true) ||
-                        (message.Document != null && (message.Document.MimeType?.StartsWith("image/") ?? false)))
-                    {
-                        string fileId = message.Photo?.Last().FileId
-                                        ?? message.Document!.FileId; // document‑image
-                        _logger.LogInformation($"📸 Processing image from UserId={userId}, fileId={fileId}");
-
-                        try
-                        {
-                            var fileInfo = await bot.GetFile(fileId, cancellationToken);
-                            if (string.IsNullOrEmpty(fileInfo.FilePath))
-                            {
-                                await bot.SendMessage(chatId, "❌ Не удалось получить файл изображения.",
-                                    replyMarkup: _uiManager.GetErrorKeyboard(settings),
-                                    cancellationToken: cancellationToken);
-                                return;
-                            }
-
-                            await using var stream = new MemoryStream();
-                            await bot.DownloadFile(fileInfo.FilePath, stream, cancellationToken);
-                            stream.Position = 0;
-
-                            var data = _pnlService.ExtractFromImage(stream);
-                            _logger.LogInformation(
-                                $"📊 OCR‑result: Ticker={data.Ticker}, Dir={data.Direction}, PnL={data.PnLPercent}");
-
-                            string tradeId = Guid.NewGuid().ToString();
-                            var trade = new Trade
-                            {
-                                UserId = userId,
-                                Date = data.TradeDate ?? DateTime.Now,
-                                Ticker = data.Ticker ?? "",
-                                Direction = data.Direction ?? "",
-                                PnL = data.PnLPercent ?? 0,
-                                OpenPrice = data.Open,
-                                Entry = data.Close
-                            };
-
-                            // если не всё распозналось — переключаемся на диалог ввода
-                            if (string.IsNullOrEmpty(trade.Ticker) ||
-                                string.IsNullOrEmpty(trade.Direction) ||
-                                data.PnLPercent == null)
-                            {
-                                var newState = new UserState
-                                {
-                                    Action = "new_trade",
-                                    Step = string.IsNullOrEmpty(trade.Ticker) ? 1 :
-                                        string.IsNullOrEmpty(trade.Direction) ? 2 : 3,
-                                    Trade = trade,
-                                    Language = settings.Language,
-                                    TradeId = tradeId
-                                };
-
-                                var (nextTxt, nextKb) =
-                                    _uiManager.GetTradeInputScreen(trade, newState.Step, settings, tradeId);
-
-                                var msg = await bot.SendMessage(chatId, nextTxt, replyMarkup: nextKb,
-                                    cancellationToken: cancellationToken);
-
-                                newState.MessageId = msg.MessageId;
-                                await SaveUserStateAsync(userId, newState);
-                            }
-                            else
-                            {
-                                var (confTxt, confKb) =
-                                    _uiManager.GetTradeConfirmationScreen(trade, tradeId, settings);
-
-                                var confMsg = await bot.SendMessage(chatId, confTxt, replyMarkup: confKb,
-                                    cancellationToken: cancellationToken);
-
-                                await SavePendingTradeAsync(userId, tradeId, confMsg.MessageId, trade);
-                                await UpdateRecentSettingsAsync(userId, trade, settings);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, $"Error processing image for UserId={userId}");
-                            await bot.SendMessage(chatId, "❌ Ошибка при обработке изображения.",
-                                replyMarkup: _uiManager.GetErrorKeyboard(settings),
-                                cancellationToken: cancellationToken);
-                        }
-
-                        return; // ← НЕ допускаем падения в «главное меню»
-                    }
-// ─── КОНЕЦ ОБРАБОТКИ ИЗОБРАЖЕНИЯ ─────────────────────────────────────────────
-
-
+                    // если сообщение не распознано контекстно, просим использовать кнопки
                     await bot.SendMessage(chatId, "👇 Пожалуйста, используйте кнопки ниже:",
                         replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: cancellationToken);
                     return;
@@ -614,12 +866,12 @@ namespace TradingBot.Services
                     _logger.LogInformation($"📲 Callback from UserId={userId}, ChatId={chatId}, MsgId={msgId}: {data}");
                     await bot.AnswerCallbackQuery(callback.Id, cancellationToken: cancellationToken);
 
-                    // читаем состояние и настройки
-                    var state = await GetUserStateAsync(userId)
-                                ?? new UserState { Language = (await GetUserSettingsAsync(userId)).Language };
+                    // получаем актуальные состояние и настройки
+                    var state = await GetUserStateAsync(userId) ?? new UserState
+                        { Language = (await GetUserSettingsAsync(userId)).Language };
                     var settings = await GetUserSettingsAsync(userId);
 
-                    // пробуем убрать сообщение‑клавиатуру
+                    // пытаемся удалить старое сообщение с кнопками, если есть
                     try
                     {
                         await bot.DeleteMessage(chatId, msgId, cancellationToken);
@@ -629,30 +881,43 @@ namespace TradingBot.Services
                         _logger.LogWarning(ex, $"Delete msg {msgId} failed");
                     }
 
-                    // ─── ПАРСИНГ CALLBACK‑ДАННЫХ ───────────────────────────────────────────
+                    // 🔁 Унифицированный парсинг callback-данных
                     string[] parts = data.Split('_', StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length == 0) return;
+                    if (parts.Length == 0)
+                        return;
 
                     string action = parts[0].ToLowerInvariant();
                     string tradeId = null;
 
-                    /* Нормализация составных callback’ов */
-                    if (action == "history" && parts.Length > 1 && parts[1] == "page") action = "history_page";
-                    if (action == "stats" && parts.Length > 1 && parts[1] == "period") action = "statsperiod";
-                    if (action == "advstats" && parts.Length > 1 && parts[1] == "period") action = "advstatsperiod";
+                    // 🔄 Нормализация действий
+                    if (action == "history" && parts.Length > 1 && parts[1] == "page")
+                        action = "history_page";
+                    else if (action == "stats" && parts.Length > 1 && parts[1] == "period")
+                        action = "statsperiod";
+                    else if (action == "advstats" && parts.Length > 1 && parts[1] == "period")
+                        action = "advstatsperiod";
 
-                    /* Выдёргиваем tradeId, где бы он ни стоял */
-                    if (action == "confirm_trade" || (action == "confirm" && parts.Length >= 3))
+                    // 🧠 Извлечение TradeId
+                    // 🧠 Извлечение TradeId
+                    // 🧠 Извлечение TradeId
+                    if (action == "confirm" || action == "confirm_trade" && parts.Length >= 2)
                         tradeId = parts[^1];
-                    else if (action == "skip" && parts.Length >= 5 && parts[1] == "trade")
-                        tradeId = parts[2];
+                    else if (action == "edit" && parts.Length >= 2)
+                        tradeId = parts[1];
+                    else if (action.StartsWith("skip") && parts.Length >= 3)
+                        tradeId = parts.FirstOrDefault(p => Guid.TryParse(p, out _));
                     else if (action == "allcorrect" && parts.Length >= 2)
                         tradeId = parts[1];
                     else
                     {
                         int idx = Array.IndexOf(parts, "trade");
-                        if (idx >= 0 && idx < parts.Length - 1) tradeId = parts[idx + 1];
+                        if (idx >= 0 && idx < parts.Length - 1)
+                            tradeId = parts[idx + 1];
                     }
+
+                    // [DEBUG]
+                    _logger.LogInformation("[DEBUG] Parsed callback: action={Action}, tradeId={TradeId}, raw={Data}",
+                        action, tradeId, data);
 
 
                     switch (action.ToLowerInvariant())
@@ -671,7 +936,21 @@ namespace TradingBot.Services
                             else
                             {
                                 await DeleteUserStateAsync(userId);
-                                await bot.SendMessage(chatId, $"📈 Главное меню:",
+
+                                // Reuse variables from outer scope or declare without conflicts
+                                var trades = await _repo.GetTradesAsync(userId); // Renamed to avoid conflict
+                                int tradeCount = trades.Count; // Renamed to avoid conflict
+                                decimal cumulativePnL = trades.Count > 0 ? trades.Sum(t => t.PnL) : 0; // Renamed
+                                int positiveTrades = trades.Count(t => t.PnL > 0); // Renamed
+                                int successRate =
+                                    tradeCount > 0 ? (int)((double)positiveTrades / tradeCount * 100) : 0; // Renamed
+                                int dailyTrades =
+                                    (await _repo.GetTradesInDateRangeAsync(userId, DateTime.Today, DateTime.Now))
+                                    .Count; // Renamed
+                                string menuText = _uiManager.GetText("main_menu", settings.Language, dailyTrades,
+                                    cumulativePnL.ToString("F2"), successRate); // Renamed
+
+                                await bot.SendMessage(chatId, menuText,
                                     replyMarkup: _uiManager.GetMainMenu(settings),
                                     cancellationToken: cancellationToken);
                             }
@@ -688,7 +967,7 @@ namespace TradingBot.Services
                                 Step = 1,
                                 Trade = new Trade { UserId = userId, Date = DateTime.Now },
                                 Language = settings.Language,
-                                TradeId = tradeId // Устанавливаем TradeId
+                                TradeId = tradeId
                             };
                             var (tradeText, tradeKeyboard) = _uiManager.GetTradeInputScreen(state.Trade, state.Step,
                                 settings, tradeId, lastTrade);
@@ -699,8 +978,10 @@ namespace TradingBot.Services
                             break;
 
                         case "edit":
+                            _logger.LogInformation($"[DEBUG] edit callback, tradeId={tradeId}");
                             if (string.IsNullOrEmpty(tradeId))
                             {
+                                _logger.LogWarning($"[DEBUG] edit callback: tradeId is null or empty, raw data={data}");
                                 await bot.SendMessage(chatId, "⏰ Сделка устарела.",
                                     replyMarkup: _uiManager.GetMainMenu(settings),
                                     cancellationToken: cancellationToken);
@@ -727,7 +1008,7 @@ namespace TradingBot.Services
                                     Step = 0,
                                     Trade = trade,
                                     Language = settings.Language,
-                                    TradeId = tradeId // Устанавливаем TradeId
+                                    TradeId = tradeId
                                 };
                                 var (editMenuText, editMenuKeyboard) =
                                     _uiManager.GetEditFieldMenu(trade, tradeId, settings);
@@ -738,50 +1019,16 @@ namespace TradingBot.Services
                             }
                             else
                             {
-                                await bot.SendMessage(chatId, "⏰ Сделка устарела.",
-                                    replyMarkup: _uiManager.GetMainMenu(settings),
-                                    cancellationToken: cancellationToken);
-                            }
-
-                            break;
-
-                        case "confirm_pnl":
-                            _logger.LogInformation(
-                                $"Processing confirm_pnl for UserId={userId}, TradeId={tradeId}, State.Trade={(state.Trade != null ? "exists" : "null")}");
-                            if (string.IsNullOrEmpty(tradeId) || state.Trade == null)
-                            {
                                 _logger.LogWarning(
-                                    $"Invalid tradeId or state.Trade is null for UserId={userId}, TradeId={tradeId}");
+                                    $"[DEBUG] edit callback: tradeId {tradeId} not found in PendingTrades");
                                 await bot.SendMessage(chatId, "⏰ Сделка устарела.",
                                     replyMarkup: _uiManager.GetMainMenu(settings),
-                                    cancellationToken: cancellationToken);
-                                break;
-                            }
-
-                            try
-                            {
-                                state.Step++;
-                                _logger.LogInformation($"Advancing to step {state.Step} for TradeId={tradeId}");
-                                var (nextText, nextKeyboard) =
-                                    _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeId);
-                                var nextMessage = await bot.SendMessage(chatId, nextText, replyMarkup: nextKeyboard,
-                                    cancellationToken: cancellationToken);
-                                state.MessageId = nextMessage.MessageId;
-                                _logger.LogInformation(
-                                    $"Sent message for step {state.Step}, MessageId={nextMessage.MessageId} for UserId={userId}");
-                                await SaveUserStateAsync(userId, state);
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogError(ex, $"Error in confirm_pnl for UserId={userId}, TradeId={tradeId}");
-                                await bot.SendMessage(chatId, "❌ Ошибка при обработке подтверждения PnL.",
-                                    replyMarkup: _uiManager.GetErrorKeyboard(settings),
                                     cancellationToken: cancellationToken);
                             }
 
                             break;
 
-                        // ───────── UpdateHandler.cs  ➜  внутри switch(action) ─────────
+
                         case "confirm":
                         {
                             // формат callback: confirm_trade_<guid>
@@ -795,13 +1042,19 @@ namespace TradingBot.Services
                                     var (trade, originalMessageId, _) = pending.Value;
 
                                     // удаляем старый экран подтверждения
-                                    try { await bot.DeleteMessage(chatId, originalMessageId, cancellationToken); }
-                                    catch { /* не критично */ }
+                                    try
+                                    {
+                                        await bot.DeleteMessage(chatId, originalMessageId, cancellationToken);
+                                    }
+                                    catch
+                                    {
+                                        /* не критично */
+                                    }
 
-                                    // сохраняем сделку единым методом (БД → Notion → уведомления)
+                                    // сохраняем сделку (БД → Notion → уведомления)
                                     await SaveTradeAsync(trade, chatId, userId, bot, settings, cancellationToken);
 
-                                    // чистим PendingTrades
+                                    // удаляем из PendingTrades
                                     await DeletePendingTradeByTradeIdAsync(userId, tradeId);
                                 }
                                 else
@@ -812,44 +1065,41 @@ namespace TradingBot.Services
                                         cancellationToken: cancellationToken);
                                 }
                             }
+
                             break;
                         }
 
-
                         case "skip":
-                            // ожидаем: skip_trade_<guid>_step_<n>
-                            if (parts.Length >= 5 && parts[0] == "skip" && parts[1] == "trade")
+                            if (parts.Length >= 5 && parts[1] == "trade" &&
+                                int.TryParse(parts[^1], out int CurrentStep))
                             {
                                 tradeId = parts[2];
+                                var pendingTrade = await GetPendingTradeByTradeIdAsync(userId, tradeId);
+                                if (pendingTrade.HasValue)
+                                {
+                                    state = new UserState
+                                    {
+                                        Action = $"edit_trade_{tradeId}",
+                                        Step = CurrentStep,
+                                        Trade = pendingTrade.Value.Trade,
+                                        Language = settings.Language,
+                                        TradeId = tradeId
+                                    };
+                                }
 
-                                // валидация состояния
                                 if (state?.Trade == null || state.TradeId != tradeId)
                                 {
                                     _logger.LogWarning(
                                         $"Invalid state or TradeId mismatch for UserId={userId}, TradeId={tradeId}");
-                                    await bot.SendMessage(chatId,
-                                        _uiManager.GetText("trade_expired", settings.Language),
+                                    await bot.SendMessage(chatId, "⏰ Сделка устарела.",
                                         replyMarkup: _uiManager.GetMainMenu(settings),
                                         cancellationToken: cancellationToken);
                                     await DeleteUserStateAsync(userId);
                                     break;
                                 }
 
-                                if (!int.TryParse(parts[^1], out int step)) // parts[^1] — последний элемент («n»)
-                                {
-                                    _logger.LogWarning(
-                                        $"Invalid step format in skip callback for UserId={userId}: {callback.Data}");
-                                    await bot.SendMessage(chatId,
-                                        _uiManager.GetText("invalid_input", settings.Language),
-                                        replyMarkup: _uiManager.GetMainMenu(settings),
-                                        cancellationToken: cancellationToken);
-                                    break;
-                                }
-
-                                state.Step = step + 1; // переходим к следующему шагу
-                                state.ErrorCount = 0;
-
-                                if (state.Step <= 8)
+                                state.Step++;
+                                if (state.Step <= 9)
                                 {
                                     var (nextText, nextKb) =
                                         _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeId);
@@ -873,12 +1123,11 @@ namespace TradingBot.Services
 
                             break;
 
-
                         case "editfield":
                             if (state.Trade != null && tradeId != null && parts.Length >= 3)
                             {
                                 string fieldKey = parts[1];
-                                int step = fieldKey switch
+                                int newStep = fieldKey switch
                                 {
                                     "ticker" => 1,
                                     "direction" => 2,
@@ -894,9 +1143,10 @@ namespace TradingBot.Services
                                 state = new UserState
                                 {
                                     Action = $"edit_trade_{tradeId}",
-                                    Step = step,
+                                    Step = newStep,
                                     Trade = state.Trade,
-                                    Language = settings.Language
+                                    Language = settings.Language,
+                                    TradeId = tradeId
                                 };
                                 var (editFieldText, editFieldKeyboard) =
                                     _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeId);
@@ -974,14 +1224,16 @@ namespace TradingBot.Services
                             }
 
                             _logger.LogInformation($"🧹 Cleared all pending trades for UserId={userId}");
-                            await bot.SendMessage(chatId, "✅ Все ожидающие сделки очищены.",
+                            await bot.SendMessage(chatId, "✅ Все активные сделки очищены.",
                                 replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: cancellationToken);
                             break;
 
                         case "stats":
-                            var (statsMenuText, statsMenuKeyboard) = _uiManager.GetStatsMenu(settings);
+                            /*var (statsMenuText, statsMenuKeyboard) = _uiManager.GetStatsMenu(settings);
                             await bot.SendMessage(chatId, statsMenuText, replyMarkup: statsMenuKeyboard,
-                                cancellationToken: cancellationToken);
+                            cancellationToken: cancellationToken);
+                            break;*/
+                            await SendStatisticsAsync(chatId, userId, bot, settings, cancellationToken);
                             break;
 
                         case "statsperiod":
@@ -1001,6 +1253,10 @@ namespace TradingBot.Services
                                     cancellationToken: cancellationToken);
                             }
 
+                            break;
+
+                        case "history":
+                            await SendHistoryAsync(chatId, userId, bot, settings, cancellationToken, 1);
                             break;
 
                         case "advstats":
@@ -1074,8 +1330,8 @@ namespace TradingBot.Services
                             break;
 
                         case "export":
-                            var allTrades = await _repo.GetTradesAsync(userId);
-                            var csvContent = GenerateCsv(allTrades);
+                            var allTradesExport = await _repo.GetTradesAsync(userId);
+                            var csvContent = GenerateCsv(allTradesExport);
                             using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(csvContent)))
                             {
                                 await bot.SendDocument(chatId, InputFile.FromStream(stream, "trades.csv"),
@@ -1086,64 +1342,73 @@ namespace TradingBot.Services
                             break;
 
                         case "settings":
-                            state = new UserState { Action = "settings_menu", Step = 1, Language = settings.Language };
-                            var (settingsMenuText, settingsMenuKeyboard) = _uiManager.GetSettingsMenu(settings);
-                            var settingsMenuMessage = await bot.SendMessage(chatId, settingsMenuText,
-                                replyMarkup: settingsMenuKeyboard, cancellationToken: cancellationToken);
-                            state.MessageId = settingsMenuMessage.MessageId;
+                            var (settingsText, settingsKeyboard) = _uiManager.GetSettingsMenu(settings);
+                            var settingsMsg = await bot.SendMessage(chatId, settingsText, replyMarkup: settingsKeyboard,
+                                cancellationToken: cancellationToken);
+                            state = new UserState
+                            {
+                                Action = "settings_menu", Step = 1, Language = settings.Language,
+                                MessageId = settingsMsg.MessageId
+                            };
                             await SaveUserStateAsync(userId, state);
                             break;
 
                         case "settings_language":
                             settings.Language = settings.Language == "ru" ? "en" : "ru";
                             await SaveUserSettingsAsync(userId, settings);
-                            var (langMenuText, langMenuKeyboard) = _uiManager.GetSettingsMenu(settings);
-                            try
-                            {
-                                await bot.EditMessageText(chatId, msgId, langMenuText, replyMarkup: langMenuKeyboard,
-                                    cancellationToken: cancellationToken);
-                            }
-                            catch
-                            {
-                                await bot.SendMessage(chatId, langMenuText, replyMarkup: langMenuKeyboard,
-                                    cancellationToken: cancellationToken);
-                            }
-
-                            state.Language = settings.Language;
-                            await SaveUserStateAsync(userId, state);
+                            _logger.LogInformation($"🌐 Language switched to {settings.Language} for UserId={userId}");
+                            var (langText, langKeyboard) = _uiManager.GetSettingsMenu(settings);
+                            await bot.SendMessage(chatId, langText, replyMarkup: langKeyboard,
+                                cancellationToken: cancellationToken);
                             break;
 
                         case "settings_notifications":
                             settings.NotificationsEnabled = !settings.NotificationsEnabled;
                             await SaveUserSettingsAsync(userId, settings);
-                            var (notifMenuText, notifMenuKeyboard) = _uiManager.GetSettingsMenu(settings);
-                            try
-                            {
-                                await bot.EditMessageText(chatId, msgId, notifMenuText, replyMarkup: notifMenuKeyboard,
-                                    cancellationToken: cancellationToken);
-                            }
-                            catch
-                            {
-                                await bot.SendMessage(chatId, notifMenuText, replyMarkup: notifMenuKeyboard,
-                                    cancellationToken: cancellationToken);
-                            }
-
+                            _logger.LogInformation(
+                                $"🔔 Notifications {(settings.NotificationsEnabled ? "enabled" : "disabled")} for UserId={userId}");
+                            var (notifText, notifKeyboard) = _uiManager.GetSettingsMenu(settings);
+                            await bot.SendMessage(chatId, notifText, replyMarkup: notifKeyboard,
+                                cancellationToken: cancellationToken);
                             break;
 
                         case "settings_tickers":
-                        {
-                            // переходим в режим ручного ввода избранного тикера
-                            state.Action = "input_ticker_settings";
-
-                            var (promptText, promptKeyboard) = _uiManager.GetSettingsInputPrompt("ticker", settings);
-                            var sent = await bot.SendMessage(chatId, promptText, replyMarkup: promptKeyboard,
+                            var (tickersText, tickersKeyboard) = _uiManager.GetFavoriteTickersMenu(settings);
+                            await bot.SendMessage(chatId, tickersText, replyMarkup: tickersKeyboard,
                                 cancellationToken: cancellationToken);
+                            break;
 
-                            state.MessageId = sent.MessageId;
+                        case "add_favorite_ticker":
+                            state.Action = "input_favorite_ticker";
+                            var (promptText, promptKeyboard) = _uiManager.GetInputPrompt("ticker", settings, "");
+                            var promptMsg1 = await bot.SendMessage(chatId, promptText, replyMarkup: promptKeyboard,
+                                cancellationToken: cancellationToken);
+                            state.MessageId = promptMsg1.MessageId;
                             await SaveUserStateAsync(userId, state);
                             break;
-                        }
 
+                        case "remove_favorite_ticker":
+                            var (removeText, removeKeyboard) = _uiManager.GetRemoveFavoriteTickerMenu(settings);
+                            await bot.SendMessage(chatId, removeText, replyMarkup: removeKeyboard,
+                                cancellationToken: cancellationToken);
+                            break;
+
+                        case "remove_ticker":
+                            if (parts.Length > 1)
+                            {
+                                string ticker = parts[1];
+                                if (settings.FavoriteTickers.Remove(ticker))
+                                {
+                                    await SaveUserSettingsAsync(userId, settings);
+                                    _logger.LogInformation(
+                                        $"⭐ Removed ticker {ticker} from favorites for UserId={userId}");
+                                    await bot.SendMessage(chatId, $"✅ Тикер {ticker} удалён из избранного.",
+                                        replyMarkup: _uiManager.GetMainMenu(settings),
+                                        cancellationToken: cancellationToken);
+                                }
+                            }
+
+                            break;
 
                         case "resetsettings":
                             string currentLang = settings.Language;
@@ -1175,17 +1440,27 @@ namespace TradingBot.Services
 
                         case "main":
                             await DeleteUserStateAsync(userId);
-                            await bot.SendMessage(chatId, $"📈 Главное меню:",
-                                replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: cancellationToken);
+                            await SendMainMenuAsync(chatId, userId, bot, cancellationToken);
                             break;
 
                         case "reset":
                             await DeleteUserStateAsync(userId);
-                            await bot.SendMessage(chatId, $"📈 Главное меню:",
+                            var allTrades2 = await _repo.GetTradesAsync(userId);
+                            int totalTrades2 = allTrades2.Count;
+                            decimal totalPnL2 = 0;
+                            if (allTrades2.Count > 0) totalPnL2 = allTrades2.Sum(t => t.PnL);
+                            int profitableCount2 = allTrades2.Count(t => t.PnL > 0);
+                            int winRate2 = totalTrades2 > 0 ? (int)((double)profitableCount2 / totalTrades2 * 100) : 0;
+                            int tradesToday2 =
+                                (await _repo.GetTradesInDateRangeAsync(userId, DateTime.Today, DateTime.Now)).Count;
+                            string mainText2 = _uiManager.GetText("main_menu", settings.Language, tradesToday2,
+                                totalPnL2.ToString("F2"), winRate2);
+                            await bot.SendMessage(chatId, mainText2,
                                 replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: cancellationToken);
                             break;
 
                         case "more":
+                        {
                             if (parts.Length > 1 && parts[1] == "tickers" && tradeId != null)
                             {
                                 var allTickers = settings.FavoriteTickers.Concat(settings.RecentTickers)
@@ -1236,49 +1511,59 @@ namespace TradingBot.Services
                             }
 
                             break;
+                        }
 
                         case "input":
                         {
                             _logger.LogInformation(
                                 $"Processing input callback for UserId={userId}, Data={callback.Data}");
-
-                            // valid: input_<field>            (2 parts)
-                            // valid: input_<field>_trade_<id> (4+ parts)
+                            // valid: input_<field> (2 parts)
+                            // valid: input_<field>_trade_<id> (4 parts)
                             if (parts.Length < 2)
                                 break;
 
-                            string field = parts[1]; // ticker | pnl | open | … | comment
+                            string field = parts[1]; // ticker|pnl|open|close|sl|tp|volume|comment
                             if (!new[] { "ticker", "pnl", "open", "close", "sl", "tp", "volume", "comment" }
                                     .Contains(field))
                                 break;
 
-                            // Если guid пришёл в callback, берём его; иначе — из state
+                            // берем tradeId из callback, если есть; иначе из state
                             if (parts.Length >= 4 && parts[2] == "trade")
                                 tradeId = parts[3];
                             else
                                 tradeId = state?.TradeId;
 
-                            // Если трейд ещё не создан — создаём заготовку
-                            if (string.IsNullOrEmpty(tradeId))
+                            // если трейд еще не создан, создаем новый
+                            if (string.IsNullOrWhiteSpace(tradeId))
                             {
                                 tradeId = Guid.NewGuid().ToString();
                                 state.TradeId = tradeId;
                                 state.Trade ??= new Trade { UserId = userId, Date = DateTime.UtcNow };
                             }
 
-                            state.Action = $"input_{field}"; // в state храним только название поля
+                            state.Action = $"input_{field}";
                             var (promptTxt, promptKb) = _uiManager.GetInputPrompt(field, settings, tradeId);
-
                             var promptMsg = await bot.SendMessage(chatId, promptTxt, replyMarkup: promptKb,
                                 cancellationToken: cancellationToken);
-
                             state.MessageId = promptMsg.MessageId;
                             await SaveUserStateAsync(userId, state);
                             break;
                         }
 
-
                         case "back":
+                            // Проверка актуальности состояния и TradeId
+                            if (state?.Trade == null || state.TradeId != tradeId)
+                            {
+                                _logger.LogWarning(
+                                    $"Invalid state or TradeId mismatch for UserId={userId}, TradeId={tradeId}");
+                                await bot.SendMessage(chatId,
+                                    _uiManager.GetText("trade_expired", settings.Language),
+                                    replyMarkup: _uiManager.GetMainMenu(settings),
+                                    cancellationToken: cancellationToken);
+                                await DeleteUserStateAsync(userId);
+                                break;
+                            }
+
                             state.Step--;
                             if (state.Step < 1)
                             {
@@ -1290,17 +1575,14 @@ namespace TradingBot.Services
                             }
                             else
                             {
-                                // FIX: гарантируем, что tradeId не потерялся
+                                // Гарантируем, что TradeId не потерян
                                 tradeId = state.TradeId;
-
                                 var (prevText, prevKeyboard) =
                                     _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeId);
-
                                 var prevMsg = await bot.SendMessage(chatId, prevText,
                                     replyMarkup: prevKeyboard, cancellationToken: cancellationToken);
-
                                 state.MessageId = prevMsg.MessageId;
-                                state.TradeId = tradeId; // на всякий случай
+                                state.TradeId = tradeId; // на всякий случай сохраняем TradeId
                                 await SaveUserStateAsync(userId, state);
                             }
 
@@ -1308,6 +1590,18 @@ namespace TradingBot.Services
 
 
                         case "set":
+                            if (state?.Trade == null || state.TradeId != tradeId)
+                            {
+                                _logger.LogWarning(
+                                    $"Invalid state or TradeId mismatch for UserId={userId}, TradeId={tradeId} in set callback");
+                                await bot.SendMessage(chatId,
+                                    _uiManager.GetText("trade_expired", settings.Language),
+                                    replyMarkup: _uiManager.GetMainMenu(settings),
+                                    cancellationToken: cancellationToken);
+                                await DeleteUserStateAsync(userId);
+                                break;
+                            }
+
                             if (parts.Length > 1 && parts[1] == "ticker" && tradeId != null)
                             {
                                 state.Trade.Ticker = parts[2];
@@ -1338,7 +1632,7 @@ namespace TradingBot.Services
                                     CultureInfo.InvariantCulture, out decimal value)
                                     ? value
                                     : 0;
-                                state.Trade.PnL += adjustment1; // Add to OCR-detected PnL
+                                state.Trade.PnL += adjustment1;
                                 var (pnlText, pnlKeyboard) =
                                     _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeId);
                                 var pnlMessage = await bot.SendMessage(chatId, pnlText, replyMarkup: pnlKeyboard,
@@ -1348,57 +1642,91 @@ namespace TradingBot.Services
                             }
 
                             break;
-                        // UpdateHandler.cs  ──────────────────────────────────────────────────────
                         case "allcorrect":
-                        {
-                            // callback: allcorrect_<guid>
-                            if (string.IsNullOrEmpty(tradeId))
+                            if (parts.Length < 2 || string.IsNullOrEmpty(tradeId))
                             {
                                 _logger.LogWarning(
                                     $"Missing TradeId in allcorrect for UserId={userId}: {callback.Data}");
-                                break;
-                            }
-
-                            // current step -> next
-                            state.Step++;
-
-                            if (state.Step > 9) // все поля заполнены — финальное подтверждение
-                            {
-                                var ready = state.Trade;
-                                await DeleteUserStateAsync(userId);
-
-                                var (confTxt, confKb) = _uiManager.GetTradeConfirmationScreen(ready, tradeId, settings);
-                                var confMsg = await bot.SendMessage(chatId, confTxt, replyMarkup: confKb,
+                                await bot.SendMessage(chatId, "⏰ Сделка устарела.",
+                                    replyMarkup: _uiManager.GetMainMenu(settings),
                                     cancellationToken: cancellationToken);
-                                await SavePendingTradeAsync(userId, tradeId, confMsg.MessageId, ready);
-                                await UpdateRecentSettingsAsync(userId, ready, settings);
                                 break;
                             }
 
-                            // иначе показываем следующий шаг
-                            var (nextTxt, nextKb) =
-                                _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeId);
-                            var nextMsg = await bot.SendMessage(chatId, nextTxt, replyMarkup: nextKb,
-                                cancellationToken: cancellationToken);
-                            state.MessageId = nextMsg.MessageId;
-                            await SaveUserStateAsync(userId, state);
-                            break;
-                        }
+                            var pendingTradeAllCorrect = await GetPendingTradeByTradeIdAsync(userId, tradeId);
+                            if (pendingTradeAllCorrect.HasValue)
+                            {
+                                state = state ?? new UserState
+                                {
+                                    Trade = pendingTradeAllCorrect.Value.Trade, TradeId = tradeId,
+                                    Language = settings.Language
+                                };
+                                state.Step = state.Step > 0 ? state.Step + 1 : 9; // Переход к подтверждению
+                                if (state.Step > 9)
+                                {
+                                    var trade = state.Trade;
+                                    await DeleteUserStateAsync(userId);
+                                    var (confirmText, confirmKb) =
+                                        _uiManager.GetTradeConfirmationScreen(trade, tradeId, settings);
+                                    var confirmMsg = await bot.SendMessage(chatId, confirmText, replyMarkup: confirmKb,
+                                        cancellationToken: cancellationToken);
+                                    await SavePendingTradeAsync(userId, tradeId, confirmMsg.MessageId, trade);
+                                    await UpdateRecentSettingsAsync(userId, trade, settings);
+                                }
+                                else
+                                {
+                                    var (nextTxt, nextKb) =
+                                        _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeId);
+                                    var nextMsg = await bot.SendMessage(chatId, nextTxt, replyMarkup: nextKb,
+                                        cancellationToken: cancellationToken);
+                                    state.MessageId = nextMsg.MessageId;
+                                    await SaveUserStateAsync(userId, state);
+                                }
+                            }
+                            else
+                            {
+                                await bot.SendMessage(chatId, "⏰ Сделка устарела.",
+                                    replyMarkup: _uiManager.GetMainMenu(settings),
+                                    cancellationToken: cancellationToken);
+                            }
 
+                            break;
 
                         case "adjust":
-                            if (parts.Length >= 3 && parts[1] == "pnl" &&
-                                decimal.TryParse(parts[2], out decimal adjustment))
+                            // Проверка состояния и TradeId
+                            if (state?.Trade == null || state.TradeId != tradeId)
                             {
-                                state.Trade.PnL += adjustment;
+                                _logger.LogWarning(
+                                    $"Invalid state or TradeId mismatch for UserId={userId}, TradeId={tradeId} in adjust callback");
+                                await bot.SendMessage(chatId,
+                                    _uiManager.GetText("trade_expired", settings.Language),
+                                    replyMarkup: _uiManager.GetMainMenu(settings),
+                                    cancellationToken: cancellationToken);
+                                await DeleteUserStateAsync(userId);
+                                break;
+                            }
+
+                            if (parts.Length >= 3 && parts[1] == "pnl")
+                            {
+                                // Парсим изменение PnL с учетом точки/запятой
+                                decimal adjValue;
+                                if (!decimal.TryParse(parts[2].Replace(",", "."), NumberStyles.Any,
+                                        CultureInfo.InvariantCulture, out adjValue))
+                                {
+                                    adjValue = 0;
+                                }
+
+                                state.Trade.PnL += adjValue;
                                 var (adjustText, adjustKeyboard) =
                                     _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeId);
-                                await bot.SendMessage(chatId, adjustText, replyMarkup: adjustKeyboard,
-                                    cancellationToken: cancellationToken);
+                                var adjustMsg = await bot.SendMessage(chatId, adjustText,
+                                    replyMarkup: adjustKeyboard, cancellationToken: cancellationToken);
+                                state.MessageId = adjustMsg.MessageId;
                                 await SaveUserStateAsync(userId, state);
                             }
 
                             break;
+
 
                         case "retry":
                             await DeleteUserStateAsync(userId);
@@ -1434,235 +1762,153 @@ namespace TradingBot.Services
             {
                 await bot.SendMessage(chatId, "❌ Ошибка: состояние утеряно.",
                     replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: cancellationToken);
-                await DeleteUserStateAsync(userId);
                 return;
             }
 
-            var parts = state.Action.Split('_');
-            string field = parts.Length > 1 ? parts[1] : "";
-            string tradeId = state.TradeId;
-
-            if (string.IsNullOrEmpty(tradeId))
+            string field = state.Action.Substring("input_".Length);
+            text = text.Trim();
+            if (string.IsNullOrEmpty(text))
             {
-                _logger.LogWarning($"TradeId is missing in state for UserId={userId}. Generating new TradeId.");
-                tradeId = Guid.NewGuid().ToString();
-                state.TradeId = tradeId;
+                state.ErrorCount++;
+                var (retryText, retryKeyboard) = state.ErrorCount >= 3
+                    ? (_uiManager.GetText("error_occurred", settings.Language), _uiManager.GetErrorKeyboard(settings))
+                    : _uiManager.GetInputPrompt(field, settings, state.TradeId);
+                var errorMessage = await bot.SendMessage(chatId, retryText, replyMarkup: retryKeyboard,
+                    cancellationToken: cancellationToken);
+                state.MessageId = errorMessage.MessageId;
                 await SaveUserStateAsync(userId, state);
+                return;
             }
 
             try
             {
-                await bot.DeleteMessage(chatId, messageId, cancellationToken);
-                await bot.DeleteMessage(chatId, state.MessageId, cancellationToken);
+                switch (field.ToLowerInvariant())
+                {
+                    case "ticker":
+                        state.Trade.Ticker = text.ToUpper();
+                        // обновляем частый список тикеров
+                        settings.RecentTickers.Remove(state.Trade.Ticker);
+                        settings.RecentTickers.Insert(0, state.Trade.Ticker);
+                        settings.RecentTickers = settings.RecentTickers.Take(5).ToList();
+                        await SaveUserSettingsAsync(userId, settings);
+                        break;
+                    case "pnl":
+                        decimal parsedPnL = TryParseDecimal(text);
+                        state.Trade.PnL = parsedPnL;
+                        break;
+                    case "open":
+                        state.Trade.OpenPrice = TryParseNullableDecimal(text);
+                        break;
+                    case "close":
+                        state.Trade.Entry = TryParseNullableDecimal(text);
+                        break;
+                    case "sl":
+                        state.Trade.SL = TryParseNullableDecimal(text);
+                        break;
+                    case "tp":
+                        state.Trade.TP = TryParseNullableDecimal(text);
+                        break;
+                    case "volume":
+                        state.Trade.Volume = TryParseNullableDecimal(text);
+                        break;
+                    case "comment":
+                        state.Trade.Comment = text;
+                        break;
+                }
+
+                // переходим к следующему шагу
+                state.Step++;
+                _logger.LogInformation($"Advanced to step {state.Step} for TradeId={state.TradeId}");
+                if (state.Step <= 9)
+                {
+                    var (nextText, nextKeyboard) =
+                        _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, state.TradeId);
+                    var nextMessage = await bot.SendMessage(chatId, nextText, replyMarkup: nextKeyboard,
+                        cancellationToken: cancellationToken);
+                    state.MessageId = nextMessage.MessageId;
+                    await SaveUserStateAsync(userId, state);
+                }
+                else
+                {
+                    // все шаги пройдены: показываем подтверждение сделки
+                    var trade = state.Trade;
+                    await DeleteUserStateAsync(userId);
+                    var (confText, confKeyboard) =
+                        _uiManager.GetTradeConfirmationScreen(trade, state.TradeId, settings);
+                    var confMessage = await bot.SendMessage(chatId, confText, replyMarkup: confKeyboard,
+                        cancellationToken: cancellationToken);
+                    await SavePendingTradeAsync(userId, state.TradeId, confMessage.MessageId, trade);
+                    await UpdateRecentSettingsAsync(userId, trade, settings);
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, $"Failed to delete message for UserId={userId}, MessageId={messageId}");
-            }
-
-            switch (field.ToLowerInvariant())
-            {
-                case "ticker":
-                    if (!string.IsNullOrWhiteSpace(text))
-                    {
-                        state.Trade.Ticker = text.ToUpper();
-                        state.Action = "trade_in_progress";
-                        state.Step++;
-                        state.ErrorCount = 0;
-                        await UpdateRecentSettingsAsync(userId, state.Trade, settings);
-                        var (textNext, keyboardNext) =
-                            _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeId);
-                        var sentMessage = await bot.SendMessage(chatId, textNext, replyMarkup: keyboardNext,
-                            cancellationToken: cancellationToken);
-                        state.MessageId = sentMessage.MessageId;
-                        await SaveUserStateAsync(userId, state);
-                    }
-                    else
-                    {
-                        state.ErrorCount++;
-                        (string retryText, InlineKeyboardMarkup retryKeyboard) = state.ErrorCount >= 3
-                            ? ("⚠️ Слишком много ошибок ввода.\nВыберите действие:",
-                                new InlineKeyboardMarkup(new[]
-                                {
-                                    new[] { InlineKeyboardButton.WithCallbackData("🔄 Начать сначала", "reset") },
-                                    new[] { InlineKeyboardButton.WithCallbackData("❌ Отмена", "cancel") }
-                                }))
-                            : _uiManager.GetInputPrompt(field, settings, tradeId);
-                        var errorMessage = await bot.SendMessage(chatId, retryText, replyMarkup: retryKeyboard,
-                            cancellationToken: cancellationToken);
-                        state.MessageId = errorMessage.MessageId;
-                        await SaveUserStateAsync(userId, state);
-                    }
-
-                    break;
-
-                case "pnl":
-                    state.Trade.PnL = TryParseDecimal(text);
-                    if (state.Trade.PnL == 0 && !text.Equals("0") && !text.Equals("0.0") && !text.Equals("0%"))
-                    {
-                        state.ErrorCount++;
-                        (string retryText, InlineKeyboardMarkup retryKeyboard) = state.ErrorCount >= 3
-                            ? ("⚠️ Неверный формат PnL.\nСлишком много ошибок:",
-                                new InlineKeyboardMarkup(new[]
-                                {
-                                    new[] { InlineKeyboardButton.WithCallbackData("🔄 Начать сначала", "reset") },
-                                    new[] { InlineKeyboardButton.WithCallbackData("❌ Отмена", "cancel") }
-                                }))
-                            : _uiManager.GetInputPrompt(field, settings, tradeId);
-                        var errorMessage = await bot.SendMessage(chatId, retryText, replyMarkup: retryKeyboard,
-                            cancellationToken: cancellationToken);
-                        state.MessageId = errorMessage.MessageId;
-                        await SaveUserStateAsync(userId, state);
-                    }
-                    else
-                    {
-                        state.Action = "trade_in_progress";
-                        state.Step++;
-                        state.ErrorCount = 0;
-                        var (textNext, keyboardNext) =
-                            _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeId);
-                        var sentMessage = await bot.SendMessage(chatId, textNext, replyMarkup: keyboardNext,
-                            cancellationToken: cancellationToken);
-                        state.MessageId = sentMessage.MessageId;
-                        await SaveUserStateAsync(userId, state);
-                    }
-
-                    break;
-
-                case "open":
-                case "close":
-                case "sl":
-                case "tp":
-                case "volume":
-                    decimal? v = TryParseNullableDecimal(text);
-                    switch (field)
-                    {
-                        case "open": state.Trade.OpenPrice = v; break;
-                        case "close": state.Trade.Entry = v; break;
-                        case "sl": state.Trade.SL = v; break;
-                        case "tp": state.Trade.TP = v; break;
-                        case "volume": state.Trade.Volume = v; break;
-                    }
-
-                    state.Action = "trade_in_progress";
-                    state.Step++;
-                    state.ErrorCount = 0;
-                    await UpdateRecentSettingsAsync(userId, state.Trade, settings);
-                    if (state.Step <= 8)
-                    {
-                        var (nTxt, nKb) = _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeId);
-                        var nMsg = await bot.SendMessage(chatId, nTxt, replyMarkup: nKb,
-                            cancellationToken: cancellationToken);
-                        state.MessageId = nMsg.MessageId;
-                        await SaveUserStateAsync(userId, state);
-                    }
-                    else
-                    {
-                        Trade ready = state.Trade;
-                        await DeleteUserStateAsync(userId);
-                        var (confText, confKb) = _uiManager.GetTradeConfirmationScreen(ready, tradeId, settings);
-                        var confMsg = await bot.SendMessage(chatId, confText, replyMarkup: confKb,
-                            cancellationToken: cancellationToken);
-                        await SavePendingTradeAsync(userId, tradeId, confMsg.MessageId, ready);
-                        await UpdateRecentSettingsAsync(userId, ready, settings);
-                    }
-
-                    break;
-
-                case "comment":
-                    state.Trade.Comment = string.IsNullOrWhiteSpace(text) ? "" : text;
-                    state.Action = parts[0] + "_trade_" + tradeId;
-                    state.Step++;
-                    state.ErrorCount = 0;
-                    await UpdateRecentSettingsAsync(userId, state.Trade, settings);
-                    var trade = state.Trade;
-                    await DeleteUserStateAsync(userId);
-                    var (confirmText, confirmKeyboard) =
-                        _uiManager.GetTradeConfirmationScreen(trade, tradeId, settings);
-                    var confirmMessage = await bot.SendMessage(chatId, confirmText, replyMarkup: confirmKeyboard,
-                        cancellationToken: cancellationToken);
-                    await SavePendingTradeAsync(userId, tradeId, confirmMessage.MessageId, trade);
-                    await UpdateRecentSettingsAsync(userId, trade, settings);
-                    break;
-
-                default:
-                    await bot.SendMessage(chatId, "⚠️ Неверный ввод.", replyMarkup: _uiManager.GetMainMenu(settings),
-                        cancellationToken: cancellationToken);
-                    await DeleteUserStateAsync(userId);
-                    break;
+                _logger.LogError(ex, $"Error in HandleTradeInputAsync for UserId={userId}, Field={field}");
+                await bot.SendMessage(chatId, "❌ Ошибка при обработке ввода.",
+                    replyMarkup: _uiManager.GetErrorKeyboard(settings), cancellationToken: cancellationToken);
             }
         }
 
         private async Task HandleSettingsInputAsync(ITelegramBotClient bot, long chatId, long userId, UserState state,
             UserSettings settings, string text, CancellationToken cancellationToken)
         {
-            var parts = state.Action.Split('_');
-            string field = parts.Length > 1 ? parts[1] : "";
-
-            try
-            {
-                await bot.DeleteMessage(chatId, state.MessageId, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, $"Failed to delete settings prompt for UserId={userId}");
-            }
-
-            if (field == "ticker")
+            string action = state.Action;
+            text = text.Trim();
+            if (action == "input_favorite_ticker")
             {
                 if (!string.IsNullOrWhiteSpace(text))
                 {
                     settings.FavoriteTickers.Add(text.ToUpper());
                     await SaveUserSettingsAsync(userId, settings);
-                    var (menuText, menuKeyboard) = _uiManager.GetSettingsMenu(settings);
-                    await bot.SendMessage(chatId, "✅ Настройки обновлены!", replyMarkup: menuKeyboard,
-                        cancellationToken: cancellationToken);
+                    await bot.SendMessage(chatId, $"✅ Тикер {text.ToUpper()} добавлен в избранное!",
+                        replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: cancellationToken);
                     await DeleteUserStateAsync(userId);
                 }
                 else
                 {
-                    var (promptText, promptKeyboard) = _uiManager.GetSettingsInputPrompt("ticker", settings);
-                    var errorMessage = await bot.SendMessage(chatId, "⚠️ Введите корректный тикер.",
-                        replyMarkup: promptKeyboard, cancellationToken: cancellationToken);
+                    state.ErrorCount++;
+                    var (retryText, retryKeyboard) = state.ErrorCount >= 3
+                        ? ("⚠️ Слишком много ошибок. Выберите действие:", new InlineKeyboardMarkup(new[]
+                        {
+                            new[] { InlineKeyboardButton.WithCallbackData("🔄 Начать заново", "reset") },
+                            new[] { InlineKeyboardButton.WithCallbackData("❌ Отмена", "cancel") }
+                        }))
+                        : _uiManager.GetInputPrompt("ticker", settings, "");
+                    var errorMessage = await bot.SendMessage(chatId, retryText, replyMarkup: retryKeyboard,
+                        cancellationToken: cancellationToken);
                     state.MessageId = errorMessage.MessageId;
                     await SaveUserStateAsync(userId, state);
                 }
             }
+            // другие настройки (например, язык или уведомления) обрабатываются напрямую в callback
         }
 
         private async Task UpdateRecentSettingsAsync(long userId, Trade trade, UserSettings settings)
         {
             if (!string.IsNullOrEmpty(trade.Ticker))
             {
-                if (settings.RecentTickers.Contains(trade.Ticker))
-                    settings.RecentTickers.Remove(trade.Ticker);
+                settings.RecentTickers.Remove(trade.Ticker);
                 settings.RecentTickers.Insert(0, trade.Ticker);
-                if (settings.RecentTickers.Count > 5)
-                    settings.RecentTickers.RemoveAt(settings.RecentTickers.Count - 1);
+                settings.RecentTickers = settings.RecentTickers.Take(5).ToList();
             }
 
             if (!string.IsNullOrEmpty(trade.Direction))
             {
-                if (settings.RecentDirections.Contains(trade.Direction))
-                    settings.RecentDirections.Remove(trade.Direction);
+                settings.RecentDirections.Remove(trade.Direction);
                 settings.RecentDirections.Insert(0, trade.Direction);
-                if (settings.RecentDirections.Count > 5)
-                    settings.RecentDirections.RemoveAt(settings.RecentDirections.Count - 1);
+                settings.RecentDirections = settings.RecentDirections.Take(5).ToList();
             }
 
             if (!string.IsNullOrEmpty(trade.Comment))
             {
-                if (settings.RecentComments.Contains(trade.Comment))
-                    settings.RecentComments.Remove(trade.Comment);
+                settings.RecentComments.Remove(trade.Comment);
                 settings.RecentComments.Insert(0, trade.Comment);
-                if (settings.RecentComments.Count > 5)
-                    settings.RecentComments.RemoveAt(settings.RecentComments.Count - 1);
+                settings.RecentComments = settings.RecentComments.Take(5).ToList();
             }
 
             await SaveUserSettingsAsync(userId, settings);
         }
 
-        // ───────── UpdateHandler.cs  (замените ВЕСЬ метод SaveTradeAsync) ───────────
         private async Task SaveTradeAsync(
             Trade trade,
             long chatId,
@@ -1672,19 +1918,13 @@ namespace TradingBot.Services
             CancellationToken ct)
         {
             _logger.LogInformation($"💾 Saving trade for UserId={userId}: {trade.Ticker}, PnL={trade.PnL}");
-
-            /* 1. сохраняем в БД */
             await _repo.AddTradeAsync(trade);
             await UpdateRecentSettingsAsync(userId, trade, settings);
 
-            /* 2. готовим единое сообщение */
-            string baseText = _uiManager.GetText("trade_saved", settings.Language,
-                trade.Ticker, trade.PnL);
-            var mainKb = _uiManager.GetMainMenu(settings);
-            var sentMsg = await bot.SendMessage(chatId, baseText,
-                replyMarkup: mainKb, cancellationToken: ct);
+            var baseText = _uiManager.GetText("trade_saved", settings.Language, trade.Ticker, trade.PnL);
+            var mainMenu = _uiManager.GetMainMenu(settings);
+            var sentMsg = await bot.SendMessage(chatId, baseText, replyMarkup: mainMenu, cancellationToken: ct);
 
-            /* 3. пробуем отправить в Notion и редактируем то же сообщение */
             try
             {
                 string pageId = await _notionService.CreatePageForTradeAsync(trade);
@@ -1693,24 +1933,22 @@ namespace TradingBot.Services
                     trade.NotionPageId = pageId;
                     await _repo.UpdateTradeAsync(trade);
                     await bot.EditMessageText(chatId, sentMsg.MessageId,
-                        baseText + "\n\n📝 Отправлено в Notion ✅", replyMarkup: mainKb, cancellationToken: ct);
+                        baseText + "\n\n📝 Сделка отправлена в Notion!", replyMarkup: mainMenu, cancellationToken: ct);
                 }
                 else
                 {
                     await bot.EditMessageText(chatId, sentMsg.MessageId,
-                        baseText + "\n\n⚠️ Не удалось отправить в Notion (пустой PageId)",
-                        replyMarkup: mainKb, cancellationToken: ct);
+                        baseText + "\n\n⚠️ Не удалось отправить в Notion.", replyMarkup: mainMenu,
+                        cancellationToken: ct);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, $"Notion error for UserId={userId}");
+                _logger.LogWarning(ex, $"Ошибка Notion для UserId={userId}");
                 await bot.EditMessageText(chatId, sentMsg.MessageId,
-                    baseText + "\n\n💾 " + _uiManager.GetText("trade_saved_local", settings.Language),
-                    replyMarkup: mainKb, cancellationToken: ct);
+                    baseText + "\n\n💾 Сделка сохранена локально.", replyMarkup: mainMenu, cancellationToken: ct);
             }
 
-            /* 4. streak‑уведомление отдельным сообщением БЕЗ клавиатуры */
             if (settings.NotificationsEnabled)
             {
                 int streak = await CalculateStreakAsync(userId);
@@ -1719,13 +1957,11 @@ namespace TradingBot.Services
                     string streakMsg = trade.PnL > 0
                         ? _uiManager.GetText("win_streak", settings.Language, streak)
                         : _uiManager.GetText("loss_streak", settings.Language, streak);
-
-                    await bot.SendMessage(chatId, streakMsg,
-                        replyMarkup: new ReplyKeyboardRemove(), cancellationToken: ct);
+                    await bot.SendMessage(chatId, streakMsg, replyMarkup: new ReplyKeyboardRemove(),
+                        cancellationToken: ct);
                 }
             }
         }
-
 
         private async Task<int> CalculateStreakAsync(long userId)
         {
@@ -1832,7 +2068,7 @@ namespace TradingBot.Services
             return null;
         }
 
-        private async Task GenerateEquityCurveAsync(long chatId, long userId, ITelegramBotClient bot,
+        /*private async Task GenerateEquityCurveAsync(long chatId, long userId, ITelegramBotClient bot,
             CancellationToken ct, string period, UserSettings settings, int triggerMessageId)
         {
             DateTime now = DateTime.UtcNow;
@@ -1878,7 +2114,180 @@ namespace TradingBot.Services
             }
             catch
             {
-                /* Ignore if message is already deleted */
+                // ignore if already deleted
+            }
+        }*/
+
+        private async Task GenerateEquityCurveAsync(long chatId, long userId, ITelegramBotClient bot,
+            CancellationToken ct, string period, UserSettings settings, int triggerMessageId)
+        {
+            DateTime now = DateTime.UtcNow;
+            List<Trade> trades = period switch
+            {
+                "week" => await _repo.GetTradesInDateRangeAsync(userId, now.AddDays(-7), now),
+                "month" => await _repo.GetTradesInDateRangeAsync(userId, now.AddDays(-30), now),
+                _ => await _repo.GetTradesAsync(userId)
+            };
+            if (trades.Count == 0)
+            {
+                await bot.SendMessage(chatId, "📉 Нет сделок для построения графика.",
+                    replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: ct);
+                return;
+            }
+
+            trades.Sort((a, b) => a.Date.CompareTo(b.Date));
+            double cumulative = 0;
+            var ys = new List<float>();
+            for (int i = 0; i < trades.Count; i++)
+            {
+                cumulative += (double)trades[i].PnL;
+                ys.Add((float)cumulative);
+            }
+
+            // Настройки размеров
+            int width = 900, height = 600, margin = 60;
+            string tmpPng = Path.Combine(Path.GetTempPath(), $"equity_{userId}_{Guid.NewGuid():N}.png");
+
+            using var surface = SKSurface.Create(new SKImageInfo(width, height));
+            var canvas = surface.Canvas;
+            canvas.Clear(SKColors.Black);
+
+            // Подготовим координаты
+            float dx = (width - 2 * margin) / (float)Math.Max(ys.Count - 1, 1);
+            float minY = ys.Min(), maxY = ys.Max();
+            if (Math.Abs(maxY - minY) < 1e-6) maxY += 1; // чтобы не делить на 0
+            float scale = (height - 2 * margin) / (maxY - minY);
+
+            // Glow-подложка (толстая полупрозрачная неоновая линия)
+            using (var glowPaint = new SKPaint
+                   {
+                       Style = SKPaintStyle.Stroke,
+                       StrokeWidth = 18,
+                       Color = new SKColor(0, 255, 255, 100), // Cyan, прозрачность
+                       IsAntialias = true,
+                       StrokeCap = SKStrokeCap.Round
+                   })
+            using (var path = new SKPath())
+            {
+                path.MoveTo(margin, height - margin - (ys[0] - minY) * scale);
+                for (int i = 1; i < ys.Count; i++)
+                    path.LineTo(margin + i * dx, height - margin - (ys[i] - minY) * scale);
+                canvas.DrawPath(path, glowPaint);
+            }
+
+            // Основная неоновая линия
+            using (var linePaint = new SKPaint
+                   {
+                       Style = SKPaintStyle.Stroke,
+                       StrokeWidth = 7,
+                       Color = SKColors.Cyan,
+                       IsAntialias = true,
+                       StrokeCap = SKStrokeCap.Round
+                   })
+            using (var path = new SKPath())
+            {
+                path.MoveTo(margin, height - margin - (ys[0] - minY) * scale);
+                for (int i = 1; i < ys.Count; i++)
+                    path.LineTo(margin + i * dx, height - margin - (ys[i] - minY) * scale);
+                canvas.DrawPath(path, linePaint);
+            }
+
+            // Точки (магентовые)
+            using (var dotPaint = new SKPaint
+                   {
+                       Style = SKPaintStyle.Fill,
+                       Color = SKColors.Magenta,
+                       IsAntialias = true
+                   })
+            {
+                for (int i = 0; i < ys.Count; i++)
+                {
+                    float x = margin + i * dx;
+                    float y = height - margin - (ys[i] - minY) * scale;
+                    canvas.DrawCircle(x, y, 9, dotPaint);
+                }
+            }
+
+            // Неоновая сетка
+            using (var gridPaint = new SKPaint
+                   {
+                       Style = SKPaintStyle.Stroke,
+                       Color = new SKColor(0, 255, 255, 60),
+                       StrokeWidth = 2
+                   })
+            {
+                // Горизонтальные линии
+                for (int i = 0; i <= 5; i++)
+                {
+                    float y = margin + i * (height - 2 * margin) / 5;
+                    canvas.DrawLine(margin, y, width - margin, y, gridPaint);
+                }
+
+                // Вертикальные линии
+                for (int i = 0; i <= 5; i++)
+                {
+                    float x = margin + i * (width - 2 * margin) / 5;
+                    canvas.DrawLine(x, margin, x, height - margin, gridPaint);
+                }
+            }
+
+            // Заголовок
+            using (var titlePaint = new SKPaint
+                   {
+                       Color = SKColors.Cyan,
+                       TextSize = 40,
+                       IsAntialias = true,
+                       FakeBoldText = true
+                   })
+            {
+                canvas.DrawText("💎 Crypto Equity Curve", margin, 48, titlePaint);
+            }
+
+            // Подписи осей
+            using (var labelPaint = new SKPaint
+                   {
+                       Color = SKColors.Lime,
+                       TextSize = 28,
+                       IsAntialias = true
+                   })
+            {
+                canvas.DrawText("Trades", width / 2 - 50, height - 15, labelPaint);
+            }
+
+            using (var labelPaint = new SKPaint
+                   {
+                       Color = SKColors.Magenta,
+                       TextSize = 28,
+                       IsAntialias = true
+                   })
+            {
+                canvas.DrawText("PnL (%)", 5, height / 2, labelPaint);
+            }
+
+            // Сохраняем png
+            using (var img = surface.Snapshot())
+            using (var data = img.Encode(SKEncodedImageFormat.Png, 100))
+            using (var stream = File.OpenWrite(tmpPng))
+            {
+                data.SaveTo(stream);
+            }
+
+            // Отправка пользователю
+            await using var fs = new FileStream(tmpPng, FileMode.Open, FileAccess.Read);
+            await bot.SendPhoto(chatId, InputFile.FromStream(fs, "equity.png"),
+                caption: "💎 Ваша неоновая кривая эквити",
+                replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: ct);
+
+            fs.Close();
+            File.Delete(tmpPng);
+
+            try
+            {
+                await bot.DeleteMessage(chatId, triggerMessageId, ct);
+            }
+            catch
+            {
+                // ignore if already deleted
             }
         }
     }

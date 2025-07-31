@@ -1,3 +1,4 @@
+// UserSettings.cs
 using System.Collections.Generic;
 
 namespace TradingBot.Models
