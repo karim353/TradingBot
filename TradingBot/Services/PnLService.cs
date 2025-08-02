@@ -87,8 +87,11 @@ namespace TradingBot.Services
                     PnLPercent = pnlPercent,
                     Close = closePrice,
                     Open = openPrice,
-                    Direction = direction
+                    Direction = direction,
+                    UserName = "unknown",         // или подставьте актуальное имя пользователя
+                    ReferralCode = "none"         // или подставьте актуальный реферальный код
                 };
+
             }
         }
     }
