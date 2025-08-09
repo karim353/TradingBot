@@ -43,27 +43,63 @@ namespace TradingBot.Services
                 decimal? pnlPercent = null;
                 decimal? closePrice = null;
                 decimal? openPrice = null;
+                DateTime? tradeDate = DateTime.Now; // Устанавливаем текущую дату
 
-                var tickerMatch = Regex.Match(text, @"([A-Z]{3,6}USDT|[A-Z]{3,6}USD|[A-Z]{3,6}BTC)", RegexOptions.IgnoreCase);
+                // Ищем тикер с улучшенным паттерном
+                var tickerMatch = Regex.Match(text, @"([A-Z]{2,6}[/-]?USDT|[A-Z]{2,6}[/-]?USD|[A-Z]{2,6}[/-]?BTC|BTC[/-]?USDT|ETH[/-]?USDT)", RegexOptions.IgnoreCase);
                 if (tickerMatch.Success)
-                    ticker = tickerMatch.Value.ToUpper();
-
-                if (text.ToUpper().Contains("LONG")) direction = "Long";
-                else if (text.ToUpper().Contains("SHORT")) direction = "Short";
-
-                var pnlLine = lines.FirstOrDefault(l => l.StartsWith("+") || l.StartsWith("-"));
-                if (pnlLine != null)
                 {
-                    var match = Regex.Match(pnlLine, @"([+\-]?\d{1,6}(?:[.,]\d{1,4})?)");
+                    ticker = tickerMatch.Value.ToUpper().Replace("-", "/").Replace("USDT", "/USDT").Replace("USD", "/USD").Replace("BTC", "/BTC");
+                    // Убираем дублирование слешей
+                    ticker = Regex.Replace(ticker, @"/+", "/");
+                }
+
+                // Ищем направление с улучшенным поиском
+                if (text.ToUpper().Contains("LONG") || text.ToUpper().Contains("BUY")) direction = "Long";
+                else if (text.ToUpper().Contains("SHORT") || text.ToUpper().Contains("SELL")) direction = "Short";
+
+                // Ищем PnL с улучшенным паттерном
+                var pnlPatterns = new[]
+                {
+                    @"PnL[\s:]*([+\-]?\d{1,6}(?:[.,]\d{1,4})?)\s*%?",
+                    @"P&L[\s:]*([+\-]?\d{1,6}(?:[.,]\d{1,4})?)\s*%?",
+                    @"Profit[\s:]*([+\-]?\d{1,6}(?:[.,]\d{1,4})?)\s*%?",
+                    @"([+\-]\d{1,6}(?:[.,]\d{1,4})?)\s*%",
+                    @"([+\-]?\d{1,6}(?:[.,]\d{1,4})?)\s*USDT"
+                };
+
+                foreach (var pattern in pnlPatterns)
+                {
+                    var match = Regex.Match(text, pattern, RegexOptions.IgnoreCase);
                     if (match.Success)
                     {
                         var numStr = match.Groups[1].Value.Replace(",", ".").Replace(" ", "");
                         if (decimal.TryParse(numStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var val))
+                        {
                             pnlPercent = val;
+                            break;
+                        }
                     }
                 }
 
-                var closeMatch = Regex.Match(text, @"Close Price[\s:]+([0-9\.,]+)", RegexOptions.IgnoreCase);
+                // Если не нашли в именованных полях, ищем строки с + или -
+                if (!pnlPercent.HasValue)
+                {
+                    var pnlLine = lines.FirstOrDefault(l => l.StartsWith("+") || l.StartsWith("-"));
+                    if (pnlLine != null)
+                    {
+                        var match = Regex.Match(pnlLine, @"([+\-]?\d{1,6}(?:[.,]\d{1,4})?)");
+                        if (match.Success)
+                        {
+                            var numStr = match.Groups[1].Value.Replace(",", ".").Replace(" ", "");
+                            if (decimal.TryParse(numStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var val))
+                                pnlPercent = val;
+                        }
+                    }
+                }
+
+                // Ищем цены закрытия и открытия
+                var closeMatch = Regex.Match(text, @"Close\s*Price[\s:]*([0-9\.,]+)", RegexOptions.IgnoreCase);
                 if (closeMatch.Success)
                 {
                     var priceStr = closeMatch.Groups[1].Value.Replace(",", "").Replace(" ", "");
@@ -71,9 +107,7 @@ namespace TradingBot.Services
                         closePrice = close;
                 }
 
-                var openMatch = Regex.Match(text, @"Avg\.?\s*Open Price[\s:]+([0-9\.,]+)", RegexOptions.IgnoreCase);
-                if (!openMatch.Success)
-                    openMatch = Regex.Match(text, @"Open Price[\s:]+([0-9\.,]+)", RegexOptions.IgnoreCase);
+                var openMatch = Regex.Match(text, @"(?:Avg\.?\s*)?Open\s*Price[\s:]*([0-9\.,]+)", RegexOptions.IgnoreCase);
                 if (openMatch.Success)
                 {
                     var openStr = openMatch.Groups[1].Value.Replace(",", "").Replace(" ", "");
@@ -88,10 +122,10 @@ namespace TradingBot.Services
                     Close = closePrice,
                     Open = openPrice,
                     Direction = direction,
-                    UserName = "unknown",         // или подставьте актуальное имя пользователя
-                    ReferralCode = "none"         // или подставьте актуальный реферальный код
+                    TradeDate = tradeDate, // Теперь устанавливаем дату
+                    UserName = "unknown",
+                    ReferralCode = "none"
                 };
-
             }
         }
     }

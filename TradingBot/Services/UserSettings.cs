@@ -12,6 +12,15 @@ namespace TradingBot.Models
         public List<string> RecentDirections { get; set; }
         public List<string> RecentComments { get; set; }
 
+        // Новые списки предпочтений
+        public List<string> RecentAccounts { get; set; }
+        public List<string> RecentSessions { get; set; }
+        public List<string> RecentPositions { get; set; }
+        public List<string> RecentResults { get; set; }
+        public List<string> RecentSetups { get; set; }
+        public List<string> RecentContexts { get; set; }
+        public List<string> RecentEmotions { get; set; }
+
         public UserSettings()
         {
             Language = "ru";
@@ -20,6 +29,13 @@ namespace TradingBot.Models
             RecentTickers = new List<string>();
             RecentDirections = new List<string>();
             RecentComments = new List<string>();
+            RecentAccounts = new List<string>();
+            RecentSessions = new List<string>();
+            RecentPositions = new List<string>();
+            RecentResults = new List<string>();
+            RecentSetups = new List<string>();
+            RecentContexts = new List<string>();
+            RecentEmotions = new List<string>();
         }
     }
 }

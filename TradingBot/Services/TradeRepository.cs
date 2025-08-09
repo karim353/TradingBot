@@ -29,6 +29,12 @@ namespace TradingBot.Services
             await _context.SaveChangesAsync();
         }
 
+        public async Task DeleteTradeAsync(Trade trade)
+        {
+            _context.Trades.Remove(trade);
+            await _context.SaveChangesAsync();
+        }
+
         public async Task<Trade?> GetLastTradeAsync(long userId)
         {
             return await _context.Trades
