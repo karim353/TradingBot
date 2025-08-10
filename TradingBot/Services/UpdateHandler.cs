@@ -53,6 +53,7 @@ namespace TradingBot.Services
         private readonly IMemoryCache _cache;
         private readonly string _sqliteConnectionString;
         private readonly string _botId;
+        private readonly Dictionary<string, string> _shortToFullTradeId = new();
 
         private class UserState
         {
@@ -101,6 +102,21 @@ namespace TradingBot.Services
 
             _logger.LogInformation($"📈 UpdateHandler initialized (BotId={_botId}, ConnectionString={_sqliteConnectionString})");
             InitializeDatabaseAsync().GetAwaiter().GetResult();
+        }
+
+        private string CreateShortTradeId(string fullId)
+        {
+            // 8-символьный ключ, чтобы уместиться в callback_data
+            string shortId = fullId.Replace("-", string.Empty).Substring(0, 8);
+            _shortToFullTradeId[shortId] = fullId;
+            return shortId;
+        }
+
+        private string? ResolveTradeId(string maybeShort)
+        {
+            if (string.IsNullOrWhiteSpace(maybeShort)) return maybeShort;
+            if (maybeShort.Length == 8 && _shortToFullTradeId.TryGetValue(maybeShort, out var full)) return full;
+            return maybeShort;
         }
 
         private async Task InitializeDatabaseAsync()
@@ -663,7 +679,7 @@ namespace TradingBot.Services
                             var data = _pnlService.ExtractFromImage(stream);
                             _logger.LogInformation($"📊 OCR result: Ticker={data.Ticker}, Direction={data.Direction}, PnL={data.PnLPercent}");
 
-                            string tradeId = Guid.NewGuid().ToString();
+                            string tradeId = CreateShortTradeId(Guid.NewGuid().ToString());
                             var trade = new Trade
                             {
                                 UserId = userId,
@@ -858,7 +874,7 @@ namespace TradingBot.Services
                     string action = parts[0].ToLowerInvariant();
                     string? tradeId = null;
 
-                    // Универсальный способ извлечь tradeId из callback (если присутствует слово "trade")
+                    // Всегда используем короткий tradeId из callback (если присутствует слово "trade")
                     int tradeIdx = Array.IndexOf(parts, "trade");
                     if (tradeIdx >= 0 && tradeIdx < parts.Length - 1)
                         tradeId = parts[tradeIdx + 1];
@@ -869,7 +885,7 @@ namespace TradingBot.Services
                         case "start_trade":
                         {
                             var lastTrade = await _tradeStorage.GetLastTradeAsync(cbUserId);
-                            tradeId = Guid.NewGuid().ToString();
+                            tradeId = CreateShortTradeId(Guid.NewGuid().ToString());
                             state = new UserState
                             {
                                 Action = "new_trade",
@@ -879,6 +895,8 @@ namespace TradingBot.Services
                                 TradeId = tradeId
                             };
                             var (tradeText, tradeKeyboard) = _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeId!, lastTrade);
+                            var dynKb0 = await GetDynamicOptionsKeyboard(cbUserId, state.Trade, state.Step, settings, tradeId!);
+                            if (dynKb0 != null) tradeKeyboard = dynKb0;
                             var tradeMessage = await bot.SendMessage(cbChatId, tradeText, replyMarkup: tradeKeyboard);
                             state.MessageId = tradeMessage.MessageId;
                             await SaveUserStateAsync(cbUserId, state);
@@ -946,6 +964,8 @@ namespace TradingBot.Services
                                 if (state.Step <= 14)
                                 {
                                     var (nextText, nextKb) = _uiManager.GetTradeInputScreen(state.Trade!, state.Step, settings, tradeId!);
+                                    var dynKb1 = await GetDynamicOptionsKeyboard(cbUserId, state.Trade!, state.Step, settings, tradeId!);
+                                    if (dynKb1 != null) nextKb = dynKb1;
                                     var nextMsg = await bot.SendMessage(cbChatId, nextText, replyMarkup: nextKb);
                                     state.MessageId = nextMsg.MessageId;
                                     await SaveUserStateAsync(cbUserId, state);
@@ -980,7 +1000,8 @@ namespace TradingBot.Services
                             switch (field)
                             {
                                 case "ticker":
-                                    state.Trade.Ticker = value.ToUpperInvariant();
+                                    // В тикере '_' используем как замену '/'
+                                    state.Trade.Ticker = value.Replace('_', '/').ToUpperInvariant();
                                     settings.RecentTickers.Remove(state.Trade.Ticker);
                                     settings.RecentTickers.Insert(0, state.Trade.Ticker);
                                     settings.RecentTickers = settings.RecentTickers.Take(5).ToList();
@@ -989,26 +1010,26 @@ namespace TradingBot.Services
                                     break;
 
                                 case "account":
-                                    value = DecodeCallbackData(value);
+                                    value = _uiManager.TryResolveOriginalOption("account", value) ?? DecodeCallbackData(value);
                                     state.Trade.Account = value;
                                     state.Step++;
                                     break;
 
                                 case "session":
                                     // декодируем безопасные значения в человекочитаемые
-                                    value = DecodeCallbackData(value);
+                                    value = _uiManager.TryResolveOriginalOption("session", value) ?? DecodeCallbackData(value);
                                     state.Trade.Session = value;
                                     state.Step++;
                                     break;
 
                                 case "position":
-                                    value = DecodeCallbackData(value);
+                                    value = _uiManager.TryResolveOriginalOption("position", value) ?? DecodeCallbackData(value);
                                     state.Trade.Position = value;
                                     state.Step++;
                                     break;
 
                                 case "direction":
-                                    value = DecodeCallbackData(value);
+                                    value = _uiManager.TryResolveOriginalOption("direction", value) ?? DecodeCallbackData(value);
                                     state.Trade.Direction = value;
                                     settings.RecentDirections.Remove(state.Trade.Direction);
                                     settings.RecentDirections.Insert(0, state.Trade.Direction);
@@ -1018,28 +1039,46 @@ namespace TradingBot.Services
                                     break;
 
                                 case "context":
-                                    value = DecodeCallbackData(value);
-                                    state.Trade.Context = new List<string> { value };
-                                    state.Step++;
+                                    value = _uiManager.TryResolveOriginalOption("context", value) ?? DecodeCallbackData(value);
+                                    state.Trade.Context ??= new List<string>();
+                                    if (state.Trade.Context.Contains(value)) state.Trade.Context.Remove(value); else state.Trade.Context.Add(value);
+                                    // на multi-select не двигаем шаг, просто перерисовываем клавиатуру с отметками
+                                    await UpdatePendingTradeAsync(cbUserId, state.TradeId!, state.Trade);
+                                    {
+                                        var dynKb = await GetDynamicOptionsKeyboard(cbUserId, state.Trade, state.Step, settings, state.TradeId!, "context", 1);
+                                        var prompt = _uiManager.GetText($"step_{state.Step}", settings.Language);
+                                        await bot.SendMessage(cbChatId, prompt, replyMarkup: dynKb);
+                                    }
                                     break;
 
                                 case "setup":
-                                    // декодируем callback_data обратно
-                                    value = DecodeCallbackData(value);
-                                    state.Trade.Setup = new List<string> { value };
-                                    state.Step++;
+                                    value = _uiManager.TryResolveOriginalOption("setup", value) ?? DecodeCallbackData(value);
+                                    state.Trade.Setup ??= new List<string>();
+                                    if (state.Trade.Setup.Contains(value)) state.Trade.Setup.Remove(value); else state.Trade.Setup.Add(value);
+                                    await UpdatePendingTradeAsync(cbUserId, state.TradeId!, state.Trade);
+                                    {
+                                        var dynKb = await GetDynamicOptionsKeyboard(cbUserId, state.Trade, state.Step, settings, state.TradeId!, "setup", 1);
+                                        var prompt = _uiManager.GetText($"step_{state.Step}", settings.Language);
+                                        await bot.SendMessage(cbChatId, prompt, replyMarkup: dynKb);
+                                    }
                                     break;
 
                                 case "result":
-                                    value = DecodeCallbackData(value);
+                                    value = _uiManager.TryResolveOriginalOption("result", value) ?? DecodeCallbackData(value);
                                     state.Trade.Result = value;
                                     state.Step++;
                                     break;
 
                                 case "emotions":
-                                    value = DecodeCallbackData(value);
-                                    state.Trade.Emotions = new List<string> { value };
-                                    state.Step++;
+                                    value = _uiManager.TryResolveOriginalOption("emotions", value) ?? DecodeCallbackData(value);
+                                    state.Trade.Emotions ??= new List<string>();
+                                    if (state.Trade.Emotions.Contains(value)) state.Trade.Emotions.Remove(value); else state.Trade.Emotions.Add(value);
+                                    await UpdatePendingTradeAsync(cbUserId, state.TradeId!, state.Trade);
+                                    {
+                                        var dynKb = await GetDynamicOptionsKeyboard(cbUserId, state.Trade, state.Step, settings, state.TradeId!, "emotions", 1);
+                                        var prompt = _uiManager.GetText($"step_{state.Step}", settings.Language);
+                                        await bot.SendMessage(cbChatId, prompt, replyMarkup: dynKb);
+                                    }
                                     break;
 
                                 case "risk":
@@ -1099,6 +1138,8 @@ namespace TradingBot.Services
                             {
                                 // Продолжаем ввод
                                 var (nextText, nextKeyboard) = _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, state.TradeId!);
+                                var dynKb2 = await GetDynamicOptionsKeyboard(cbUserId, state.Trade, state.Step, settings, state.TradeId!);
+                                if (dynKb2 != null) nextKeyboard = dynKb2;
                                 var nextMessage = await bot.SendMessage(cbChatId, nextText, replyMarkup: nextKeyboard);
                                 state.MessageId = nextMessage.MessageId;
                                 await SaveUserStateAsync(cbUserId, state);
@@ -1173,6 +1214,8 @@ namespace TradingBot.Services
                                     TradeId = tradeId
                                 };
                                 var (editText, editKb) = _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeId);
+                                var dynKb3 = await GetDynamicOptionsKeyboard(cbUserId, state.Trade, state.Step, settings, tradeId);
+                                if (dynKb3 != null) editKb = dynKb3;
                                 var editMsg = await bot.SendMessage(cbChatId, editText, replyMarkup: editKb);
                                 state.MessageId = editMsg.MessageId;
                                 await SaveUserStateAsync(cbUserId, state);
@@ -1291,19 +1334,59 @@ namespace TradingBot.Services
                             break;
                         }
 
+                        case "history_filter_menu":
+                        {
+                            var (txt, kb) = _uiManager.GetHistoryFiltersMenu(settings);
+                            if (callback.Message != null)
+                                await bot.EditMessageText(cbChatId, callback.Message.MessageId, txt, replyMarkup: kb, cancellationToken: cancellationToken);
+                            else
+                                await bot.SendMessage(cbChatId, txt, replyMarkup: kb, cancellationToken: cancellationToken);
+                            break;
+                        }
                         case "historyfilter":
                         {
-                            if (parts.Length >= 3)
+                            if (parts.Length >= 2)
                             {
-                                string filterType = parts[1];
-                                string filterValue = parts[2];
+                                var sub = parts[1];
+                                if (sub == "date_menu" || sub == "ticker_menu" || sub == "direction_menu" || sub == "result_menu")
+                                {
+                                    var submenuKb = _uiManager.GetHistoryFilterSubmenu(sub.Replace("_menu", string.Empty), settings);
+                                    if (callback.Message != null)
+                                        await bot.EditMessageText(cbChatId, callback.Message.MessageId, "Выберите значение:", replyMarkup: submenuKb, cancellationToken: cancellationToken);
+                                    else
+                                        await bot.SendMessage(cbChatId, "Выберите значение:", replyMarkup: submenuKb, cancellationToken: cancellationToken);
+                                    break;
+                                }
+
                                 string period = "all";
-                                string filterParam = filterType == "pnl" && parts.Length >= 4
-                                    ? $"{filterValue}:{parts[3]}"
-                                    : $"{filterType}:{filterValue}";
-                                var filteredTrades = await GetFilteredTradesAsync(cbUserId, period, filterParam);
-                                var (historyText, historyKeyboard) = _uiManager.GetHistoryScreen(filteredTrades, 1, period, filterParam, settings);
-                                await bot.SendMessage(cbChatId, historyText, replyMarkup: historyKeyboard, cancellationToken: cancellationToken);
+                                string filter = "none";
+                                if (sub.StartsWith("date"))
+                                {
+                                    filter = "none";
+                                    period = sub switch { "date_7d" => "week", "date_30d" => "month", _ => "all" };
+                                }
+                                else if (sub.StartsWith("ticker"))
+                                {
+                                    string tick = parts.Length >= 3 ? parts[2].Replace('_', '/') : "all";
+                                    filter = tick == "all" ? "none" : $"ticker:{tick}";
+                                }
+                                else if (sub.StartsWith("direction"))
+                                {
+                                    string dir = parts.Length >= 3 ? parts[2] : "Long";
+                                    filter = $"direction:{dir}";
+                                }
+                                else if (sub.StartsWith("result"))
+                                {
+                                    string kind = parts.Length >= 3 ? parts[2] : "profit";
+                                    filter = kind == "profit" ? "pnl:gt:0" : "pnl:lt:0";
+                                }
+
+                                var tradesX = await GetFilteredTradesAsync(cbUserId, period, filter);
+                                var (tx, kb) = _uiManager.GetHistoryScreen(tradesX, 1, period, filter, settings);
+                                if (callback.Message != null)
+                                    await bot.EditMessageText(cbChatId, callback.Message.MessageId, tx, replyMarkup: kb, cancellationToken: cancellationToken);
+                                else
+                                    await bot.SendMessage(cbChatId, tx, replyMarkup: kb, cancellationToken: cancellationToken);
                             }
                             break;
                         }
@@ -1318,7 +1401,10 @@ namespace TradingBot.Services
                                 string filterParam = parts[6];
                                 var tradesPage = await GetFilteredTradesAsync(cbUserId, period, filterParam);
                                 var (historyPageText, historyPageKeyboard) = _uiManager.GetHistoryScreen(tradesPage, pageNumber, period, filterParam, settings);
-                                await bot.SendMessage(cbChatId, historyPageText, replyMarkup: historyPageKeyboard, cancellationToken: cancellationToken);
+                                if (callback.Message != null)
+                                    await bot.EditMessageText(cbChatId, callback.Message.MessageId, historyPageText, replyMarkup: historyPageKeyboard, cancellationToken: cancellationToken);
+                                else
+                                    await bot.SendMessage(cbChatId, historyPageText, replyMarkup: historyPageKeyboard, cancellationToken: cancellationToken);
                             }
                             break;
                         }
@@ -1389,7 +1475,10 @@ namespace TradingBot.Services
                         case "settings_tickers":
                         {
                             var (tickersText, tickersKeyboard) = _uiManager.GetFavoriteTickersMenu(settings);
-                            await bot.SendMessage(cbChatId, tickersText, replyMarkup: tickersKeyboard, cancellationToken: cancellationToken);
+                            if (callback.Message != null)
+                                await bot.EditMessageText(cbChatId, callback.Message.MessageId, tickersText, replyMarkup: tickersKeyboard, cancellationToken: cancellationToken);
+                            else
+                                await bot.SendMessage(cbChatId, tickersText, replyMarkup: tickersKeyboard, cancellationToken: cancellationToken);
                             break;
                         }
 
@@ -1397,16 +1486,27 @@ namespace TradingBot.Services
                         {
                             state.Action = "input_favorite_ticker";
                             var (promptText, promptKeyboard) = _uiManager.GetInputPrompt("ticker", settings, "");
-                            var promptMsg1 = await bot.SendMessage(cbChatId, promptText, replyMarkup: promptKeyboard, cancellationToken: cancellationToken);
-                            state.MessageId = promptMsg1.MessageId;
+                            if (callback.Message != null)
+                            {
+                                await bot.EditMessageText(cbChatId, callback.Message.MessageId, promptText, replyMarkup: promptKeyboard, cancellationToken: cancellationToken);
+                                state.MessageId = callback.Message.MessageId;
+                            }
+                            else
+                            {
+                                var promptMsg1 = await bot.SendMessage(cbChatId, promptText, replyMarkup: promptKeyboard, cancellationToken: cancellationToken);
+                                state.MessageId = promptMsg1.MessageId;
+                            }
                             await SaveUserStateAsync(cbUserId, state);
                             break;
                         }
 
                         case "remove_favorite_ticker":
                         {
-                            var (removeText, removeKeyboard) = _uiManager.GetRemoveFavoriteTickerMenu(settings);
-                            await bot.SendMessage(cbChatId, removeText, replyMarkup: removeKeyboard, cancellationToken: cancellationToken);
+                            var (removeText, removeKeyboard) = _uiManager.GetFavoriteTickersMenu(settings);
+                            if (callback.Message != null)
+                                await bot.EditMessageText(cbChatId, callback.Message.MessageId, removeText, replyMarkup: removeKeyboard, cancellationToken: cancellationToken);
+                            else
+                                await bot.SendMessage(cbChatId, removeText, replyMarkup: removeKeyboard, cancellationToken: cancellationToken);
                             break;
                         }
 
@@ -1414,12 +1514,15 @@ namespace TradingBot.Services
                         {
                             if (parts.Length > 1)
                             {
-                                string ticker = DecodeCallbackData(parts[1]);
+                                string ticker = parts[1].Replace('_', '/');
                                 if (settings.FavoriteTickers.Remove(ticker))
                                 {
                                     await SaveUserSettingsAsync(cbUserId, settings);
-                                    await bot.SendMessage(cbChatId, _uiManager.GetText("ticker_removed", settings.Language, ticker),
-                                        replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: cancellationToken);
+                                    var (tickersText2, tickersKeyboard2) = _uiManager.GetFavoriteTickersMenu(settings);
+                                    if (callback.Message != null)
+                                        await bot.EditMessageText(cbChatId, callback.Message.MessageId, tickersText2, replyMarkup: tickersKeyboard2, cancellationToken: cancellationToken);
+                                    else
+                                        await bot.SendMessage(cbChatId, tickersText2, replyMarkup: tickersKeyboard2, cancellationToken: cancellationToken);
                                 }
                             }
                             break;
@@ -1488,7 +1591,7 @@ namespace TradingBot.Services
                             {
                                 string field = parts[1];
                                 int page = int.TryParse(parts[3], out var p) ? p : 1;
-                                string tId = parts[5];
+                                string tId = ResolveTradeId(parts[5]) ?? string.Empty;
                                 var st = await GetUserStateAsync(cbUserId) ?? state;
                                 var trade = st.Trade ?? new Trade { UserId = cbUserId, Date = DateTime.Now };
                                                                 var dynKb = await GetDynamicOptionsKeyboard(cbUserId, trade, st.Step, settings, tId, field, page);
@@ -1554,6 +1657,8 @@ namespace TradingBot.Services
                             else
                             {
                                 var (prevText, prevKeyboard) = _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeId);
+                                var dynKb4 = await GetDynamicOptionsKeyboard(cbUserId, state.Trade, state.Step, settings, tradeId);
+                                if (dynKb4 != null) prevKeyboard = dynKb4;
                                 var prevMsg = await bot.SendMessage(cbChatId, prevText, replyMarkup: prevKeyboard, cancellationToken: cancellationToken);
                                 state.MessageId = prevMsg.MessageId;
                                 await SaveUserStateAsync(cbUserId, state);
@@ -1576,6 +1681,8 @@ namespace TradingBot.Services
                                 decimal adjValue = TryParseDecimal(parts[2]);
                                 state.Trade.PnL += adjValue;
                                 var (adjustText, adjustKeyboard) = _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeId);
+                                var dynKb5 = await GetDynamicOptionsKeyboard(cbUserId, state.Trade, state.Step, settings, tradeId);
+                                if (dynKb5 != null) adjustKeyboard = dynKb5;
                                 var adjustMsg = await bot.SendMessage(cbChatId, adjustText, replyMarkup: adjustKeyboard, cancellationToken: cancellationToken);
                                 state.MessageId = adjustMsg.MessageId;
                                 await SaveUserStateAsync(cbUserId, state);
@@ -1621,6 +1728,8 @@ namespace TradingBot.Services
                                 else
                                 {
                                     var (nextTxt, nextKb) = _uiManager.GetTradeInputScreen(state.Trade!, state.Step, settings, tradeId);
+                                    var dynKb6 = await GetDynamicOptionsKeyboard(cbUserId, state.Trade!, state.Step, settings, tradeId);
+                                    if (dynKb6 != null) nextKb = dynKb6;
                                     var nextMsg = await bot.SendMessage(cbChatId, nextTxt, replyMarkup: nextKb, cancellationToken: cancellationToken);
                                     state.MessageId = nextMsg.MessageId;
                                     await SaveUserStateAsync(cbUserId, state);
@@ -1777,7 +1886,10 @@ namespace TradingBot.Services
                     state.Step++;
                     if (state.Step <= 14)
                     {
-                        var (nextText, nextKeyboard) = _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, state.TradeId ?? Guid.NewGuid().ToString());
+                        var tradeIdX = state.TradeId ?? Guid.NewGuid().ToString();
+                        var (nextText, nextKeyboard) = _uiManager.GetTradeInputScreen(state.Trade, state.Step, settings, tradeIdX);
+                        var dynKbN = await GetDynamicOptionsKeyboard(userId, state.Trade, state.Step, settings, tradeIdX);
+                        if (dynKbN != null) nextKeyboard = dynKbN;
                         var nextMessage = await bot.SendMessage(chatId, nextText, replyMarkup: nextKeyboard, cancellationToken: cancellationToken);
                         state.MessageId = nextMessage.MessageId;
                         await SaveUserStateAsync(userId, state);
@@ -2290,7 +2402,12 @@ namespace TradingBot.Services
             {
                 options = new List<string>();
             }
-            return _uiManager.BuildOptionsKeyboard(field!, options, tradeId, settings, page: page, step: step);
+            // Проставляем отметки для multi-select
+            var selected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (field == "context" && trade.Context != null) foreach (var v in trade.Context) selected.Add(v);
+            if (field == "setup" && trade.Setup != null) foreach (var v in trade.Setup) selected.Add(v);
+            if (field == "emotions" && trade.Emotions != null) foreach (var v in trade.Emotions) selected.Add(v);
+            return _uiManager.BuildOptionsKeyboard(field!, options, tradeId, settings, page: page, step: step, selected: selected);
         }
     }
 }

@@ -13,6 +13,7 @@ namespace TradingBot.Services
         private readonly TradeRepository _repo;
         private readonly NotionService _notion;
         private readonly IMemoryCache _cache;
+        private ITradeStorage _tradeStorageImplementation;
 
         public NotionTradeStorage(TradeContext dbContext, NotionService notionService, IMemoryCache cache)
         {

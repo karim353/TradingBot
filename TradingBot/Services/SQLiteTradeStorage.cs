@@ -12,6 +12,8 @@ namespace TradingBot.Services
     public class SQLiteTradeStorage : ITradeStorage
     {
         private readonly TradeRepository _repo;
+        private ITradeStorage _tradeStorageImplementation;
+
         public SQLiteTradeStorage(TradeContext db)
         {
             _repo = new TradeRepository(db);

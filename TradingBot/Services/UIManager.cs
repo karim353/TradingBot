@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Telegram.Bot.Types.ReplyMarkups;
 using TradingBot.Models;
 
@@ -10,13 +11,13 @@ namespace TradingBot.Services
     public class UIManager
     {
         // Очистка callback_data от недопустимых символов для Telegram API
-        private static string SanitizeCallbackData(string input)
+        public static string SanitizeCallbackData(string input)
         {
             if (string.IsNullOrEmpty(input)) return input;
             
             // Убираем пробелы, проценты, двоеточия, и другие проблемные символы
             var result = input
-                .Replace(" ", "_")
+                .Replace(" ", "")
                 .Replace("%", "PCT")
                 .Replace(":", "_")
                 .Replace("/", "_")
@@ -36,9 +37,12 @@ namespace TradingBot.Services
                 .Replace(",", "_")
                 .Replace(".", "_");
 
-            // Обрезаем до 30 символов чтобы весь callback_data не превышал 64 байта
-            if (result.Length > 30)
-                result = result.Substring(0, 30);
+            // Удаляем все не-ASCII символы (эмодзи, кириллица и пр.) чтобы гарантировать <=64 байт
+            result = Regex.Replace(result, @"[^\x00-\x7F]", string.Empty);
+
+            // Обрезаем до 20 символов чтобы весь callback_data не превышал 64 байта
+            if (result.Length > 20)
+                result = result.Substring(0, 20);
 
             return result;
         }
@@ -275,10 +279,10 @@ namespace TradingBot.Services
                     var recent = settings.RecentTickers ?? new List<string>();
                     var tickers = fav.Concat(recent).Concat(PopularTickers).Distinct().Take(5).ToList();
                     foreach (var t in tickers)
-                        buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(t, $"set_ticker_{t}_trade_{tradeId}") });
+                        buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(t, $"set_ticker_{SanitizeCallbackData(t)}_trade_{tradeId}") });
                     buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["other"], $"input_ticker_trade_{tradeId}") });
                     if (!string.IsNullOrEmpty(lastTrade?.Ticker))
-                        buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["prefill_last"], $"set_ticker_{lastTrade!.Ticker}_trade_{tradeId}") });
+                        buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["prefill_last"], $"set_ticker_{SanitizeCallbackData(lastTrade!.Ticker)}_trade_{tradeId}") });
                     break;
 
                 case 2: // Аккаунт
@@ -654,57 +658,98 @@ namespace TradingBot.Services
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetHistoryScreen(List<Trade> trades, int page, string period, string filter, UserSettings settings)
         {
-            // Красивый компактный вывод истории
             int pageSize = 5;
-            int totalPages = Math.Max(1, (int)Math.Ceiling(trades.Count / (double)pageSize));
+            var ordered = trades.OrderByDescending(t => t.Date).ToList();
+            int totalPages = Math.Max(1, (int)Math.Ceiling(ordered.Count / (double)pageSize));
             page = Math.Min(Math.Max(page, 1), totalPages);
-            var pageTrades = trades
-                .OrderByDescending(t => t.Date)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
+            var pageTrades = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine("📋 История сделок");
-            if (!trades.Any())
+            if (!ordered.Any())
             {
                 sb.AppendLine(GetText("no_trades", settings.Language));
             }
             else
             {
-                sb.AppendLine("```plaintext");
-                sb.AppendLine("ID    Дата        Пара       Направл.  PnL   ");
-                sb.AppendLine(new string('-', 48));
                 foreach (var t in pageTrades)
                 {
-                    string id = t.Id.ToString().PadRight(5);
-                    string date = t.Date.ToString("yyyy-MM-dd").PadRight(11);
-                    string pair = (t.Ticker ?? "-").PadRight(10).Substring(0, Math.Min(10, (t.Ticker ?? "-").Length));
-                    string dir = (t.Direction ?? "-").PadRight(8).Substring(0, Math.Min(8, (t.Direction ?? "-").Length));
-                    string pnl = ($"{t.PnL:F2}%").PadRight(6);
-                    sb.AppendLine($"{id} {date} {pair} {dir} {pnl}");
+                    string date = t.Date.ToString("dd.MM.yyyy HH:mm");
+                    string ticker = t.Ticker ?? "-";
+                    string direction = t.Direction ?? "-";
+                    string ctx = (t.Context != null && t.Context.Any()) ? string.Join(", ", t.Context) : "-";
+                    string sign = t.PnL >= 0 ? "+" : "-";
+                    string absPnl = Math.Abs(t.PnL).ToString("F2");
+                    sb.AppendLine($"📅 {date}");
+                    sb.AppendLine($"📈 Ticker: {ticker}");
+                    sb.AppendLine($"↕ Direction: {direction}");
+                    sb.AppendLine($"💰 PnL: {sign}{absPnl}%");
+                    sb.AppendLine($"📄 Context: {ctx}");
+                    sb.AppendLine("");
                 }
-                sb.AppendLine("```");
                 sb.AppendLine($"Страница {page} из {totalPages}");
             }
 
             var buttons = new List<InlineKeyboardButton[]>();
-            if (trades.Any())
+            if (ordered.Any())
             {
-                var paginationButtons = new List<InlineKeyboardButton>();
-                if (page > 1)
-                    paginationButtons.Add(InlineKeyboardButton.WithCallbackData("◀ Пред.", $"history_page_{page - 1}_period_{period}_filter_{filter ?? "none"}"));
-                paginationButtons.Add(InlineKeyboardButton.WithCallbackData($"[{page}]", $"noop"));
-                if (page < totalPages)
-                    paginationButtons.Add(InlineKeyboardButton.WithCallbackData("След. ▶", $"history_page_{page + 1}_period_{period}_filter_{filter ?? "none"}"));
-                if (paginationButtons.Any()) buttons.Add(paginationButtons.ToArray());
+                var pag = new List<InlineKeyboardButton>();
+                if (page > 1) pag.Add(InlineKeyboardButton.WithCallbackData("⬅️ Назад", $"history_page_{page - 1}_period_{period}_filter_{filter ?? "none"}"));
+                if (page < totalPages) pag.Add(InlineKeyboardButton.WithCallbackData("…Ещё", $"history_page_{page + 1}_period_{period}_filter_{filter ?? "none"}"));
+                if (pag.Any()) buttons.Add(pag.ToArray());
 
-                buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("💾 Экспорт в CSV", "export") });
                 buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("🔍 Фильтры", $"history_filter_menu") });
+                buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("💾 Экспорт в CSV", "export") });
             }
 
             buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("main_menu_button", settings.Language), "main") });
             return (sb.ToString(), new InlineKeyboardMarkup(buttons));
+        }
+
+        public (string Text, InlineKeyboardMarkup Keyboard) GetHistoryFiltersMenu(UserSettings settings)
+        {
+            string text = "🔍 Фильтры истории:\nВыберите категорию:";
+            var rows = new List<InlineKeyboardButton[]>
+            {
+                new[] { InlineKeyboardButton.WithCallbackData("📅 По дате", "historyfilter_date_menu") },
+                new[] { InlineKeyboardButton.WithCallbackData("📈 По тикеру", "historyfilter_ticker_menu") },
+                new[] { InlineKeyboardButton.WithCallbackData("↕ По направлению", "historyfilter_direction_menu") },
+                new[] { InlineKeyboardButton.WithCallbackData("✅/❌ По результату", "historyfilter_result_menu") },
+                new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "history") }
+            };
+            return (text, new InlineKeyboardMarkup(rows));
+        }
+
+        public InlineKeyboardMarkup GetHistoryFilterSubmenu(string type, UserSettings settings)
+        {
+            var rows = new List<InlineKeyboardButton[]>();
+            switch (type)
+            {
+                case "date":
+                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData("7 дней", "historyfilter_date_7d") });
+                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData("30 дней", "historyfilter_date_30d") });
+                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData("Все время", "historyfilter_date_all") });
+                    break;
+                case "ticker":
+                    if (settings.FavoriteTickers.Any())
+                    {
+                        foreach (var t in settings.FavoriteTickers.Take(12))
+                        {
+                            rows.Add(new[] { InlineKeyboardButton.WithCallbackData(t, $"historyfilter_ticker_{SanitizeCallbackData(t)}") });
+                        }
+                    }
+                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData("Все", "historyfilter_ticker_all") });
+                    break;
+                case "direction":
+                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData("LONG", "historyfilter_direction_Long") });
+                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData("SHORT", "historyfilter_direction_Short") });
+                    break;
+                case "result":
+                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData("✅ Профит", "historyfilter_result_profit") });
+                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData("❌ Убыток", "historyfilter_result_loss") });
+                    break;
+            }
+            rows.Add(new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "history_filter_menu") });
+            return new InlineKeyboardMarkup(rows);
         }
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetTradeDetailScreen(Trade trade, UserSettings settings)
@@ -732,7 +777,7 @@ namespace TradingBot.Services
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetFavoriteTickersMenu(UserSettings settings)
         {
-            string text = $"⭐ Избранные тикеры:\n\n";
+            string text = "📈 Избранные тикеры:\n\n";
             if (settings.FavoriteTickers.Any())
             {
                 text += string.Join(", ", settings.FavoriteTickers);
@@ -742,12 +787,13 @@ namespace TradingBot.Services
                 text += "Пусто";
             }
 
-            var buttons = new List<InlineKeyboardButton[]>
+            var buttons = new List<InlineKeyboardButton[]>();
+            foreach (var ticker in settings.FavoriteTickers)
             {
-                new[] { InlineKeyboardButton.WithCallbackData("➕ Добавить тикер", "add_favorite_ticker") },
-                new[] { InlineKeyboardButton.WithCallbackData("➖ Удалить тикер", "remove_favorite_ticker") },
-                new[] { InlineKeyboardButton.WithCallbackData("◀️ Назад к настройкам", "settings") }
-            };
+                buttons.Add(new[] { InlineKeyboardButton.WithCallbackData($"❌ {ticker}", $"remove_ticker_{SanitizeCallbackData(ticker)}") });
+            }
+            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("➕ Добавить тикер", "add_favorite_ticker") });
+            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "settings") });
 
             return (text, new InlineKeyboardMarkup(buttons));
         }
@@ -787,33 +833,20 @@ namespace TradingBot.Services
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetSettingsMenu(UserSettings settings)
         {
-            string text = $"⚙️ Настройки:\n\n" +
-                         $"🌐 Язык: {(settings.Language == "ru" ? "Русский" : "English")}\n" +
-                         $"🔔 Уведомления: {(settings.NotificationsEnabled ? "Включены" : "Выключены")}\n" +
-                         $"⭐ Избранных тикеров: {settings.FavoriteTickers.Count}";
+            string text =
+                "⚙️ Настройки:\n\n" +
+                $"🌐 Сменить язык: {(settings.Language == "ru" ? "Русский" : "English")}\n" +
+                $"🔔 Уведомления: {(settings.NotificationsEnabled ? "Включены ✅" : "Выключены ❌")}\n" +
+                $"📈 Избранные тикеры: {settings.FavoriteTickers.Count}";
 
-            // Набор переключателей (единая логика и для Notion, и для SQLite)
-            var candidates = new List<InlineKeyboardButton>
+            var rows = new List<InlineKeyboardButton[]>
             {
-                InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "🌐 RU" : "🌐 EN", "settings_language"),
-                InlineKeyboardButton.WithCallbackData(settings.NotificationsEnabled ? "🔔 On" : "🔕 Off", "settings_notifications"),
-                InlineKeyboardButton.WithCallbackData("⭐ Тикеры", "settings_tickers"),
-                InlineKeyboardButton.WithCallbackData("🔄 Сброс", "resetsettings")
+                new[] { InlineKeyboardButton.WithCallbackData("🌐 Сменить язык", "settings_language") },
+                new[] { InlineKeyboardButton.WithCallbackData(settings.NotificationsEnabled ? "🔔 Уведомления: ✅" : "🔔 Уведомления: ❌", "settings_notifications") },
+                new[] { InlineKeyboardButton.WithCallbackData("📈 Избранные тикеры", "settings_tickers") },
+                new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "main") }
             };
 
-            // Раскладка: короткие подписи по 3–4 в ряд, длинные сокращаем до 2
-            var rows = new List<InlineKeyboardButton[]>();
-            int i = 0;
-            while (i < candidates.Count)
-            {
-                int len = candidates[i].Text.Length;
-                int perRow = len <= 8 ? 4 : len <= 12 ? 3 : 2;
-                var row = new List<InlineKeyboardButton>();
-                for (int j = 0; j < perRow && i < candidates.Count; j++, i++) row.Add(candidates[i]);
-                rows.Add(row.ToArray());
-            }
-
-            rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("main_menu_button", settings.Language), "main") });
             return (text, new InlineKeyboardMarkup(rows));
         }
 
@@ -838,8 +871,16 @@ namespace TradingBot.Services
             _directionOptions = directionOptions;
         }
 
-        public InlineKeyboardMarkup BuildOptionsKeyboard(string field, List<string> options, string tradeId, UserSettings settings, int page = 1, int pageSize = 24, int step = 0)
+        public InlineKeyboardMarkup BuildOptionsKeyboard(string field,
+                                                         List<string> options,
+                                                         string tradeId,
+                                                         UserSettings settings,
+                                                         int page = 1,
+                                                         int pageSize = 24,
+                                                         int step = 0,
+                                                         HashSet<string>? selected = null)
         {
+            selected ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var recents = field switch
             {
                 "ticker" => settings.RecentTickers,
@@ -868,11 +909,11 @@ namespace TradingBot.Services
                     if (i + 1 < pageSlice.Count)
                         rows.Add(new[]
                         {
-                            InlineKeyboardButton.WithCallbackData(pageSlice[i], $"set_{field}_{SanitizeCallbackData(pageSlice[i])}_trade_{tradeId}"),
-                            InlineKeyboardButton.WithCallbackData(pageSlice[i + 1], $"set_{field}_{SanitizeCallbackData(pageSlice[i + 1])}_trade_{tradeId}")
+                            InlineKeyboardButton.WithCallbackData((selected.Contains(pageSlice[i]) ? "✅ " : "") + pageSlice[i], $"set_{field}_{SanitizeCallbackData(pageSlice[i])}_trade_{tradeId}"),
+                            InlineKeyboardButton.WithCallbackData((selected.Contains(pageSlice[i + 1]) ? "✅ " : "") + pageSlice[i + 1], $"set_{field}_{SanitizeCallbackData(pageSlice[i + 1])}_trade_{tradeId}")
                         });
                     else
-                        rows.Add(new[] { InlineKeyboardButton.WithCallbackData(pageSlice[i], $"set_{field}_{SanitizeCallbackData(pageSlice[i])}_trade_{tradeId}") });
+                        rows.Add(new[] { InlineKeyboardButton.WithCallbackData((selected.Contains(pageSlice[i]) ? "✅ " : "") + pageSlice[i], $"set_{field}_{SanitizeCallbackData(pageSlice[i])}_trade_{tradeId}") });
                 }
             }
             else
@@ -886,7 +927,8 @@ namespace TradingBot.Services
                     for (int j = 0; j < perRow && i < pageSlice.Count; j++, i++)
                     {
                         string v = pageSlice[i];
-                        row.Add(InlineKeyboardButton.WithCallbackData(v, $"set_{field}_{SanitizeCallbackData(v)}_trade_{tradeId}"));
+                        string text = (selected.Contains(v) ? "✅ " : "") + v;
+                        row.Add(InlineKeyboardButton.WithCallbackData(text, $"set_{field}_{SanitizeCallbackData(v)}_trade_{tradeId}"));
                     }
                     rows.Add(row.ToArray());
                 }
@@ -914,6 +956,33 @@ namespace TradingBot.Services
             });
 
             return new InlineKeyboardMarkup(rows);
+        }
+
+        // Разрешение исходной опции по её безопасному значению callback_data
+        public string? TryResolveOriginalOption(string field, string sanitized)
+        {
+            List<string> list = field.ToLowerInvariant() switch
+            {
+                "account" => _accountOptions,
+                "session" => _sessionOptions,
+                "position" => _positionOptions,
+                "direction" => _directionOptions,
+                "context" => _contextOptions,
+                "setup" => _setupOptions,
+                "result" => _resultOptions,
+                "emotions" => _emotionOptions,
+                // Для тикера списков нет, вернём null чтобы применить запасную логику
+                _ => new List<string>()
+            };
+
+            // Ищем строгое совпадение по правилу санитизации
+            foreach (var option in list)
+            {
+                if (SanitizeCallbackData(option) == sanitized)
+                    return option;
+            }
+
+            return null;
         }
     }
 }
