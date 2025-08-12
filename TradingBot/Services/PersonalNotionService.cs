@@ -10,13 +10,13 @@ namespace TradingBot.Services
 {
     public class PersonalNotionService
     {
-        private readonly HttpClient _httpClient;
+        private readonly NotionHttpClientFactory _httpClientFactory;
         private readonly ILogger<PersonalNotionService> _logger;
         private readonly IConfiguration _configuration;
 
-        public PersonalNotionService(HttpClient httpClient, ILogger<PersonalNotionService> logger, IConfiguration configuration)
+        public PersonalNotionService(NotionHttpClientFactory httpClientFactory, ILogger<PersonalNotionService> logger, IConfiguration configuration)
         {
-            _httpClient = httpClient;
+            _httpClientFactory = httpClientFactory;
             _logger = logger;
             _configuration = configuration;
         }
@@ -40,44 +40,45 @@ namespace TradingBot.Services
 
             try
             {
-                // Настраиваем HTTP клиент для конкретного пользователя
-                _httpClient.DefaultRequestHeaders.Clear();
-                _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {userSettings.NotionIntegrationToken}");
-                _httpClient.DefaultRequestHeaders.Add("Notion-Version", "2022-06-28");
-
-                // Получаем схему базы данных
-                var response = await _httpClient.GetAsync($"https://api.notion.com/v1/databases/{userSettings.NotionDatabaseId}");
-                
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogWarning("Не удалось получить схему базы данных Notion для пользователя. Status: {Status}", response.StatusCode);
-                    return new Dictionary<string, List<string>>();
-                }
-
-                string json = await response.Content.ReadAsStringAsync();
-                using JsonDocument doc = JsonDocument.Parse(json);
-                
-                var optionsByField = new Dictionary<string, List<string>>();
-                JsonElement props = doc.RootElement.GetProperty("properties");
-                
-                foreach (var prop in props.EnumerateObject())
-                {
-                    if (prop.Value.GetProperty("type").GetString() is string type && 
-                        (type == "select" || type == "multi_select"))
+                // Используем фабрику для создания безопасного HTTP-клиента
+                return await _httpClientFactory.UseClientAsync(
+                    userSettings.NotionIntegrationToken!,
+                    async (client) =>
                     {
-                        var options = new List<string>();
-                        foreach (var opt in prop.Value.GetProperty(type).GetProperty("options").EnumerateArray())
+                        // Получаем схему базы данных
+                        var response = await client.GetAsync($"https://api.notion.com/v1/databases/{userSettings.NotionDatabaseId}");
+                        
+                        if (!response.IsSuccessStatusCode)
                         {
-                            string? name = opt.GetProperty("name").GetString();
-                            if (!string.IsNullOrWhiteSpace(name))
-                                options.Add(name);
+                            _logger.LogWarning("Не удалось получить схему базы данных Notion для пользователя. Status: {Status}", response.StatusCode);
+                            return new Dictionary<string, List<string>>();
                         }
-                        optionsByField[prop.Name] = options;
-                    }
-                }
 
-                _logger.LogInformation("Получено {Count} полей с опциями из персональной БД Notion пользователя", optionsByField.Count);
-                return optionsByField;
+                        string json = await response.Content.ReadAsStringAsync();
+                        using JsonDocument doc = JsonDocument.Parse(json);
+                        
+                        var optionsByField = new Dictionary<string, List<string>>();
+                        JsonElement props = doc.RootElement.GetProperty("properties");
+                        
+                        foreach (var prop in props.EnumerateObject())
+                        {
+                            if (prop.Value.GetProperty("type").GetString() is string type && 
+                                (type == "select" || type == "multi_select"))
+                            {
+                                var options = new List<string>();
+                                foreach (var opt in prop.Value.GetProperty(type).GetProperty("options").EnumerateArray())
+                                {
+                                    string? name = opt.GetProperty("name").GetString();
+                                    if (!string.IsNullOrWhiteSpace(name))
+                                        options.Add(name);
+                                    }
+                                optionsByField[prop.Name] = options;
+                            }
+                        }
+
+                        _logger.LogInformation("Получено {Count} полей с опциями из персональной БД Notion пользователя", optionsByField.Count);
+                        return optionsByField;
+                    });
             }
             catch (Exception ex)
             {
@@ -105,12 +106,13 @@ namespace TradingBot.Services
 
             try
             {
-                _httpClient.DefaultRequestHeaders.Clear();
-                _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {userSettings.NotionIntegrationToken}");
-                _httpClient.DefaultRequestHeaders.Add("Notion-Version", "2022-06-28");
-
-                var response = await _httpClient.GetAsync($"https://api.notion.com/v1/databases/{userSettings.NotionDatabaseId}");
-                return response.IsSuccessStatusCode;
+                return await _httpClientFactory.UseClientAsync(
+                    userSettings.NotionIntegrationToken!,
+                    async (client) =>
+                    {
+                        var response = await client.GetAsync($"https://api.notion.com/v1/databases/{userSettings.NotionDatabaseId}");
+                        return response.IsSuccessStatusCode;
+                    });
             }
             catch (Exception ex)
             {

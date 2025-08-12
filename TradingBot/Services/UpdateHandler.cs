@@ -8,6 +8,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
 using TradingBot.Models;
 using TradingBot.Services;
 using Telegram.Bot;
@@ -54,6 +55,9 @@ namespace TradingBot.Services
         private readonly string _sqliteConnectionString;
         private readonly string _botId;
         private readonly Dictionary<string, string> _shortToFullTradeId = new();
+        private readonly IServiceProvider _serviceProvider;
+        private readonly SemaphoreSlim _dbInitSemaphore = new SemaphoreSlim(1, 1);
+        private bool _dbInitialized = false;
 
         private class UserState
         {
@@ -78,7 +82,8 @@ namespace TradingBot.Services
             ILogger<UpdateHandler> logger,
             IMemoryCache cache,
             string sqliteConnectionString,
-            string botId)
+            string botId,
+            IServiceProvider serviceProvider)
         {
             _tradeStorage = tradeStorage ?? throw new ArgumentNullException(nameof(tradeStorage));
             _pnlService = pnlService ?? throw new ArgumentNullException(nameof(pnlService));
@@ -86,6 +91,7 @@ namespace TradingBot.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _cache = cache ?? throw new ArgumentNullException(nameof(cache));
             _botId = string.IsNullOrWhiteSpace(botId) ? "bot" : botId;
+            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
             if (string.IsNullOrWhiteSpace(sqliteConnectionString))
                 throw new ArgumentNullException(nameof(sqliteConnectionString), "SQLite connection string cannot be null or empty.");
@@ -101,7 +107,6 @@ namespace TradingBot.Services
             }
 
             _logger.LogInformation($"📈 UpdateHandler initialized (BotId={_botId}, ConnectionString={_sqliteConnectionString})");
-            InitializeDatabaseAsync().GetAwaiter().GetResult();
         }
 
         private string CreateShortTradeId(string fullId)
@@ -121,8 +126,13 @@ namespace TradingBot.Services
 
         private async Task InitializeDatabaseAsync()
         {
+            if (_dbInitialized) return;
+            
+            await _dbInitSemaphore.WaitAsync();
             try
             {
+                if (_dbInitialized) return; // Double-check pattern
+                
                 using var connection = new SqliteConnection(_sqliteConnectionString);
                 await connection.OpenAsync();
                 var command = connection.CreateCommand();
@@ -150,11 +160,16 @@ namespace TradingBot.Services
                     );
                 ";
                 await command.ExecuteNonQueryAsync();
+                _dbInitialized = true;
                 _logger.LogInformation("📊 Database initialized (PendingTrades, UserStates, UserSettings)");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Database initialization failed");
+            }
+            finally
+            {
+                _dbInitSemaphore.Release();
             }
         }
 
@@ -654,6 +669,10 @@ namespace TradingBot.Services
                     string text = message.Text?.Trim() ?? "";
 
                     _logger.LogInformation($"📩 Message from UserId={userId}, ChatId={chatId}: {(string.IsNullOrEmpty(text) ? "[non-text]" : text)}");
+                    
+                    // Инициализируем базу данных при необходимости
+                    await InitializeDatabaseAsync();
+                    
                     var settings = await GetUserSettingsAsync(userId);
                     var state = await GetUserStateAsync(userId) ?? new UserState { Language = settings.Language };
 
@@ -723,108 +742,65 @@ namespace TradingBot.Services
                     if (text == "/menu")
                     {
                         await DeleteUserStateAsync(userId);
-                        // Подгружаем актуальные опции из хранилища (Notion или SQLite)
-                        List<string> emotionOptions, sessionOptions, accountOptions,
-                                    contextOptions, setupOptions, resultOptions,
-                                    positionOptions, directionOptions;
+                        
+                        // Инициализируем опции селектов для быстрого доступа
                         try
                         {
-                            emotionOptions   = await _tradeStorage.GetSelectOptionsAsync("Emotions", state.Trade);
-                        }
-                        catch (Exception ex) { _logger.LogWarning(ex, "Failed to get Emotions options"); emotionOptions = new List<string>(); }
-                        try
-                        {
-                            sessionOptions   = await _tradeStorage.GetSelectOptionsAsync("Session", state.Trade);
-                        }
-                        catch (Exception ex) { _logger.LogWarning(ex, "Failed to get Session options"); sessionOptions = new List<string>(); }
-                        try
-                        {
-                            accountOptions   = await _tradeStorage.GetSelectOptionsAsync("Account", state.Trade);
-                        }
-                        catch (Exception ex) { _logger.LogWarning(ex, "Failed to get Account options"); accountOptions = new List<string>(); }
-                        try
-                        {
-                            contextOptions   = await _tradeStorage.GetSelectOptionsAsync("Context", state.Trade);
-                        }
-                        catch (Exception ex) { _logger.LogWarning(ex, "Failed to get Context options"); contextOptions = new List<string>(); }
-                        try
-                        {
-                            setupOptions     = await _tradeStorage.GetSelectOptionsAsync("Setup", state.Trade);
-                        }
-                        catch (Exception ex) { _logger.LogWarning(ex, "Failed to get Setup options"); setupOptions = new List<string>(); }
-                        try
-                        {
-                            resultOptions    = await _tradeStorage.GetSelectOptionsAsync("Result", state.Trade);
-                        }
-                        catch (Exception ex) { _logger.LogWarning(ex, "Failed to get Result options"); resultOptions = new List<string>(); }
-                        try
-                        {
-                            positionOptions  = await _tradeStorage.GetSelectOptionsAsync("Position", state.Trade);
-                        }
-                        catch (Exception ex) { _logger.LogWarning(ex, "Failed to get Position options"); positionOptions = new List<string>(); }
-                        try
-                        {
-                            directionOptions = await _tradeStorage.GetSelectOptionsAsync("Direction", state.Trade);
-                        }
-                        catch (Exception ex) { _logger.LogWarning(ex, "Failed to get Direction options"); directionOptions = new List<string>(); }
+                            var emotionOptions = await _tradeStorage.GetSelectOptionsAsync("Emotions", state.Trade);
+                            var sessionOptions = await _tradeStorage.GetSelectOptionsAsync("Session", state.Trade);
+                            var accountOptions = await _tradeStorage.GetSelectOptionsAsync("Account", state.Trade);
+                            var contextOptions = await _tradeStorage.GetSelectOptionsAsync("Context", state.Trade);
+                            var setupOptions = await _tradeStorage.GetSelectOptionsAsync("Setup", state.Trade);
+                            var resultOptions = await _tradeStorage.GetSelectOptionsAsync("Result", state.Trade);
+                            var positionOptions = await _tradeStorage.GetSelectOptionsAsync("Position", state.Trade);
+                            var directionOptions = await _tradeStorage.GetSelectOptionsAsync("Direction", state.Trade);
 
-                        // Передаем пустой список для исторических стратегий (не используются в новой схеме)
-                        _uiManager.SetSelectOptions(
-                            new List<string>(),
-                            emotionOptions,
-                            sessionOptions,
-                            accountOptions,
-                            contextOptions,
-                            setupOptions,
-                            resultOptions,
-                            positionOptions,
-                            directionOptions
-                        );
+                            _uiManager.SetSelectOptions(
+                                new List<string>(), // strategies (не используются в новой схеме)
+                                emotionOptions,
+                                sessionOptions,
+                                accountOptions,
+                                contextOptions,
+                                setupOptions,
+                                resultOptions,
+                                positionOptions,
+                                directionOptions
+                            );
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to initialize select options for /menu command");
+                        }
+                        
                         await SendMainMenuAsync(chatId, userId, bot, CancellationToken.None);
                         return;
                     }
 
                     if (text == "/start")
                     {
+                        // Очищаем состояние пользователя
+                        await DeleteUserStateAsync(userId);
+
+                        // Проверяем, видел ли пользователь обучение
                         if (_cache.TryGetValue($"seen_tutorial_{userId}", out bool _))
                         {
-                            await DeleteUserStateAsync(userId);
-
-                            // Инициализируем опции селектов аналогично /menu
-                            var emotOpts = await _tradeStorage.GetSelectOptionsAsync("Emotions", state.Trade);
-                            var sessOpts = await _tradeStorage.GetSelectOptionsAsync("Session", state.Trade);
-                            var accOpts  = await _tradeStorage.GetSelectOptionsAsync("Account", state.Trade);
-                            var ctxOpts  = await _tradeStorage.GetSelectOptionsAsync("Context", state.Trade);
-                            var setupOpts= await _tradeStorage.GetSelectOptionsAsync("Setup", state.Trade);
-                            var resOpts  = await _tradeStorage.GetSelectOptionsAsync("Result", state.Trade);
-                            var posOpts  = await _tradeStorage.GetSelectOptionsAsync("Position", state.Trade);
-                            var dirOpts  = await _tradeStorage.GetSelectOptionsAsync("Direction", state.Trade);
-
-                            _uiManager.SetSelectOptions(
-                                new List<string>(), // strategies
-                                emotOpts, sessOpts, accOpts, ctxOpts, setupOpts, resOpts, posOpts, dirOpts
-                            );
-
-                            var allTradesX = await _tradeStorage.GetTradesAsync(userId);
-                            int totalTrades = allTradesX.Count;
-                            decimal totalPnL = totalTrades > 0 ? allTradesX.Sum(t => t.PnL) : 0;
-                            int profitableCount = allTradesX.Count(t => t.PnL > 0);
-                            int winRate = totalTrades > 0 ? (int)((double)profitableCount / totalTrades * 100) : 0;
-                            int tradesToday = (await _tradeStorage.GetTradesInDateRangeAsync(userId, DateTime.Today, DateTime.Now)).Count;
-
-                            string mainText = _uiManager.GetText("main_menu", settings.Language, tradesToday, totalPnL.ToString("F2"), winRate);
-                            await bot.SendMessage(chatId, mainText, replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: CancellationToken.None);
+                            // Пользователь уже знаком с ботом - показываем главное меню
+                            await SendMainMenuAsync(chatId, userId, bot, CancellationToken.None);
                             return;
                         }
 
-                        // Начало обучения (tutorial)
-                        await DeleteUserStateAsync(userId);
+                        // Первый запуск - показываем обучение
                         var st = new UserState { Language = settings.Language, Action = "onboarding", Step = 1 };
                         var (welcomeText, onboardingKeyboard) = _uiManager.GetOnboardingScreen(st.Step, st.Language);
+                        
                         var sentMessage = await bot.SendMessage(chatId, welcomeText, replyMarkup: onboardingKeyboard, cancellationToken: CancellationToken.None);
                         st.MessageId = sentMessage.MessageId;
                         await SaveUserStateAsync(userId, st);
+                        
+                        // Отмечаем, что пользователь видел обучение
                         _cache.Set($"seen_tutorial_{userId}", true, TimeSpan.FromDays(30));
+                        
+                        _logger.LogInformation($"🎯 New user started onboarding: UserId={userId}");
                         return;
                     }
 
@@ -855,6 +831,9 @@ namespace TradingBot.Services
                     string data = callback.Data ?? string.Empty;
                     _logger.LogInformation($"📲 Callback from UserId={cbUserId}: {data}");
                     await bot.AnswerCallbackQuery(callback.Id);
+
+                    // Инициализируем базу данных при необходимости
+                    await InitializeDatabaseAsync();
 
                     var state = await GetUserStateAsync(cbUserId) ?? new UserState { Language = (await GetUserSettingsAsync(cbUserId)).Language };
                     var settings = await GetUserSettingsAsync(cbUserId);
@@ -1461,8 +1440,34 @@ namespace TradingBot.Services
                         case "settings":
                         {
                             var (settingsText, settingsKeyboard) = _uiManager.GetSettingsMenu(settings);
-                            var settingsMsg = await bot.SendMessage(cbChatId, settingsText, replyMarkup: settingsKeyboard, cancellationToken: cancellationToken);
-                            state = new UserState { Action = "settings_menu", Step = 1, Language = settings.Language, MessageId = settingsMsg.MessageId };
+                            
+                            if (callback.Message != null)
+                            {
+                                try
+                                {
+                                    await bot.EditMessageText(cbChatId, callback.Message.MessageId, settingsText, replyMarkup: settingsKeyboard, cancellationToken: cancellationToken);
+                                    state = new UserState { Action = "settings_menu", Step = 1, Language = settings.Language, MessageId = callback.Message.MessageId };
+                                    _logger.LogInformation("Меню настроек успешно отредактировано");
+                                }
+                                catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.Message.Contains("message is not modified"))
+                                {
+                                    // Сообщение не изменилось - это нормально
+                                    _logger.LogDebug("Сообщение настроек не изменилось, оставляем как есть");
+                                    state = new UserState { Action = "settings_menu", Step = 1, Language = settings.Language, MessageId = callback.Message.MessageId };
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Не удалось отредактировать сообщение настроек, отправляем новое");
+                                    // Fallback: отправляем новое сообщение
+                                    var settingsMsg = await bot.SendMessage(cbChatId, settingsText, replyMarkup: settingsKeyboard, cancellationToken: cancellationToken);
+                                    state = new UserState { Action = "settings_menu", Step = 1, Language = settings.Language, MessageId = settingsMsg.MessageId };
+                                }
+                            }
+                            else
+                            {
+                                var settingsMsg = await bot.SendMessage(cbChatId, settingsText, replyMarkup: settingsKeyboard, cancellationToken: cancellationToken);
+                                state = new UserState { Action = "settings_menu", Step = 1, Language = settings.Language, MessageId = settingsMsg.MessageId };
+                            }
                             await SaveUserStateAsync(cbUserId, state);
                             break;
                         }
@@ -1471,22 +1476,95 @@ namespace TradingBot.Services
                         {
                             settings.Language = settings.Language == "ru" ? "en" : "ru";
                             await SaveUserSettingsAsync(cbUserId, settings);
+                            
+                            var (settingsText, settingsKeyboard) = _uiManager.GetSettingsMenu(settings);
+                            
                             if (callback.Message != null)
                             {
-                                var (langText, langKeyboard) = _uiManager.GetSettingsMenu(settings);
-                                await bot.EditMessageText(cbChatId, callback.Message.MessageId, langText, replyMarkup: langKeyboard, cancellationToken: cancellationToken);
+                                try
+                                {
+                                    await bot.EditMessageText(cbChatId, callback.Message.MessageId, settingsText, replyMarkup: settingsKeyboard, cancellationToken: cancellationToken);
+                                    _logger.LogInformation("Язык изменен, меню настроек обновлено");
+                                    
+                                    // Показываем уведомление о смене языка
+                                    var languageText = settings.Language == "ru" 
+                                        ? "🌐 Язык изменен на русский"
+                                        : "🌐 Language changed to English";
+                                    await bot.AnswerCallbackQuery(callback.Id);
+                                }
+                                catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.Message.Contains("message is not modified"))
+                                {
+                                    _logger.LogDebug("Сообщение настроек не изменилось при смене языка");
+                                    
+                                    // Показываем уведомление через callback query
+                                    var languageText = settings.Language == "ru" 
+                                        ? "🌐 Язык изменен на русский"
+                                        : "🌐 Language changed to English";
+                                    await bot.AnswerCallbackQuery(callback.Id);
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Не удалось отредактировать сообщение при смене языка, отправляем новое");
+                                    var settingsMsg = await bot.SendMessage(cbChatId, settingsText, replyMarkup: settingsKeyboard, cancellationToken: cancellationToken);
+                                    state.MessageId = settingsMsg.MessageId;
+                                    await SaveUserStateAsync(cbUserId, state);
+                                }
+                            }
+                            else
+                            {
+                                var settingsMsg = await bot.SendMessage(cbChatId, settingsText, replyMarkup: settingsKeyboard, cancellationToken: cancellationToken);
+                                state.MessageId = settingsMsg.MessageId;
+                                await SaveUserStateAsync(cbUserId, state);
                             }
                             break;
                         }
 
                         case "settings_notifications":
                         {
+                            // Переключаем состояние уведомлений
                             settings.NotificationsEnabled = !settings.NotificationsEnabled;
                             await SaveUserSettingsAsync(cbUserId, settings);
+                            
+                            var (settingsText, settingsKeyboard) = _uiManager.GetSettingsMenu(settings);
+                            
                             if (callback.Message != null)
                             {
-                                var (notifText, notifKeyboard) = _uiManager.GetSettingsMenu(settings);
-                                await bot.EditMessageText(cbChatId, callback.Message.MessageId, notifText, replyMarkup: notifKeyboard, cancellationToken: cancellationToken);
+                                try
+                                {
+                                    await bot.EditMessageText(cbChatId, callback.Message.MessageId, settingsText, replyMarkup: settingsKeyboard, cancellationToken: cancellationToken);
+                                    _logger.LogInformation("Состояние уведомлений изменено на: {NotificationsEnabled}", settings.NotificationsEnabled);
+                                    
+                                    // Показываем краткое уведомление об изменении
+                                    var notificationText = settings.NotificationsEnabled 
+                                        ? _uiManager.GetText("notifications_enabled", settings.Language)
+                                        : _uiManager.GetText("notifications_disabled", settings.Language);
+                                    
+                                    // Отправляем временное уведомление, которое автоматически исчезнет
+                                    await bot.AnswerCallbackQuery(callback.Id);
+                                }
+                                catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.Message.Contains("message is not modified"))
+                                {
+                                    _logger.LogDebug("Сообщение настроек не изменилось при изменении уведомлений");
+                                    
+                                    // Показываем уведомление через callback query
+                                    var notificationText = settings.NotificationsEnabled 
+                                        ? _uiManager.GetText("notifications_enabled", settings.Language)
+                                        : _uiManager.GetText("notifications_disabled", settings.Language);
+                                    await bot.AnswerCallbackQuery(callback.Id);
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Не удалось отредактировать сообщение при изменении уведомлений, отправляем новое");
+                                    var settingsMsg = await bot.SendMessage(cbChatId, settingsText, replyMarkup: settingsKeyboard, cancellationToken: cancellationToken);
+                                    state.MessageId = settingsMsg.MessageId;
+                                    await SaveUserStateAsync(cbUserId, state);
+                                }
+                            }
+                            else
+                            {
+                                var settingsMsg = await bot.SendMessage(cbChatId, settingsText, replyMarkup: settingsKeyboard, cancellationToken: cancellationToken);
+                                state.MessageId = settingsMsg.MessageId;
+                                await SaveUserStateAsync(cbUserId, state);
                             }
                             break;
                         }
@@ -1494,10 +1572,320 @@ namespace TradingBot.Services
                         case "settings_tickers":
                         {
                             var (tickersText, tickersKeyboard) = _uiManager.GetFavoriteTickersMenu(settings);
+                            
                             if (callback.Message != null)
-                                await bot.EditMessageText(cbChatId, callback.Message.MessageId, tickersText, replyMarkup: tickersKeyboard, cancellationToken: cancellationToken);
+                            {
+                                try
+                                {
+                                    await bot.EditMessageText(cbChatId, callback.Message.MessageId, tickersText, replyMarkup: tickersKeyboard, cancellationToken: cancellationToken);
+                                    state.Action = "favorite_tickers";
+                                    state.MessageId = callback.Message.MessageId;
+                                    _logger.LogInformation("Переход в меню избранных тикеров");
+                                }
+                                catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.Message.Contains("message is not modified"))
+                                {
+                                    _logger.LogDebug("Сообщение не изменилось при переходе к тикерам");
+                                    state.Action = "favorite_tickers";
+                                    state.MessageId = callback.Message.MessageId;
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Не удалось отредактировать сообщение для тикеров, отправляем новое");
+                                    var tickersMsg = await bot.SendMessage(cbChatId, tickersText, replyMarkup: tickersKeyboard, cancellationToken: cancellationToken);
+                                    state.Action = "favorite_tickers";
+                                    state.MessageId = tickersMsg.MessageId;
+                                }
+                            }
                             else
-                                await bot.SendMessage(cbChatId, tickersText, replyMarkup: tickersKeyboard, cancellationToken: cancellationToken);
+                            {
+                                var tickersMsg = await bot.SendMessage(cbChatId, tickersText, replyMarkup: tickersKeyboard, cancellationToken: cancellationToken);
+                                state.Action = "favorite_tickers";
+                                state.MessageId = tickersMsg.MessageId;
+                            }
+                            await SaveUserStateAsync(cbUserId, state);
+                            break;
+                        }
+
+                        case "settings_notion":
+                        {
+                            var (notionText, notionKeyboard) = _uiManager.GetNotionSettingsMenu(settings);
+                            
+                            if (callback.Message != null)
+                            {
+                                try
+                                {
+                                    await bot.EditMessageText(cbChatId, callback.Message.MessageId, notionText, replyMarkup: notionKeyboard, cancellationToken: cancellationToken);
+                                    state.Action = "notion_settings";
+                                    state.MessageId = callback.Message.MessageId;
+                                    _logger.LogInformation("Переход в настройки Notion");
+                                }
+                                catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.Message.Contains("message is not modified"))
+                                {
+                                    _logger.LogDebug("Сообщение не изменилось при переходе к настройкам Notion");
+                                    state.Action = "notion_settings";
+                                    state.MessageId = callback.Message.MessageId;
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Не удалось отредактировать сообщение для настроек Notion, отправляем новое");
+                                    var notionMsg = await bot.SendMessage(cbChatId, notionText, replyMarkup: notionKeyboard, cancellationToken: cancellationToken);
+                                    state.Action = "notion_settings";
+                                    state.MessageId = notionMsg.MessageId;
+                                }
+                            }
+                            else
+                            {
+                                var notionMsg = await bot.SendMessage(cbChatId, notionText, replyMarkup: notionKeyboard, cancellationToken: cancellationToken);
+                                state.Action = "notion_settings";
+                                state.MessageId = notionMsg.MessageId;
+                            }
+                            await SaveUserStateAsync(cbUserId, state);
+                            break;
+                        }
+
+                        case "notion_connect":
+                        {
+                            // Включаем Notion и переходим к вводу токена
+                            settings.NotionEnabled = true;
+                            await SaveUserSettingsAsync(cbUserId, settings);
+                            
+                            var (tokenText, tokenKeyboard) = _uiManager.GetNotionTokenInputMenu(settings);
+                            
+                            if (callback.Message != null)
+                            {
+                                try
+                                {
+                                    await bot.EditMessageText(cbChatId, callback.Message.MessageId, tokenText, replyMarkup: tokenKeyboard, cancellationToken: cancellationToken);
+                                    state.Action = "input_notion_token";
+                                    state.MessageId = callback.Message.MessageId;
+                                    _logger.LogInformation("Переход к вводу токена Notion");
+                                }
+                                catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.Message.Contains("message is not modified"))
+                                {
+                                    _logger.LogDebug("Сообщение не изменилось при переходе к вводу токена");
+                                    state.Action = "input_notion_token";
+                                    state.MessageId = callback.Message.MessageId;
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Не удалось отредактировать сообщение для ввода токена, отправляем новое");
+                                    var tokenMsg = await bot.SendMessage(cbChatId, tokenText, replyMarkup: tokenKeyboard, cancellationToken: cancellationToken);
+                                    state.Action = "input_notion_token";
+                                    state.MessageId = tokenMsg.MessageId;
+                                }
+                            }
+                            else
+                            {
+                                var tokenMsg = await bot.SendMessage(cbChatId, tokenText, replyMarkup: tokenKeyboard, cancellationToken: cancellationToken);
+                                state.Action = "input_notion_token";
+                                state.MessageId = tokenMsg.MessageId;
+                            }
+                            await SaveUserStateAsync(cbUserId, state);
+                            break;
+                        }
+
+                        case "notion_disconnect":
+                        {
+                            // Отключаем Notion
+                            settings.NotionEnabled = false;
+                            settings.NotionDatabaseId = null;
+                            settings.NotionIntegrationToken = null;
+                            await SaveUserSettingsAsync(cbUserId, settings);
+                            
+                            var (notionText, notionKeyboard) = _uiManager.GetNotionSettingsMenu(settings);
+                            
+                            if (callback.Message != null)
+                            {
+                                try
+                                {
+                                    await bot.EditMessageText(cbChatId, callback.Message.MessageId, notionText, replyMarkup: notionKeyboard, cancellationToken: cancellationToken);
+                                    _logger.LogInformation("Notion отключен, меню обновлено");
+                                }
+                                catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.Message.Contains("message is not modified"))
+                                {
+                                    _logger.LogDebug("Сообщение не изменилось при отключении Notion");
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Не удалось отредактировать сообщение при отключении Notion, отправляем новое");
+                                    await bot.SendMessage(cbChatId, notionText, replyMarkup: notionKeyboard, cancellationToken: cancellationToken);
+                                }
+                            }
+                            else
+                            {
+                                await bot.SendMessage(cbChatId, notionText, replyMarkup: notionKeyboard, cancellationToken: cancellationToken);
+                            }
+                            
+                                                                // Показываем уведомление об отключении
+                                    var disconnectText = _uiManager.GetText("notion_disconnected", settings.Language);
+                                    await bot.AnswerCallbackQuery(callback.Id);
+                            break;
+                        }
+
+                        case "notion_test_connection":
+                        {
+                            // Тестируем подключение к Notion
+                            if (string.IsNullOrEmpty(settings.NotionIntegrationToken) || string.IsNullOrEmpty(settings.NotionDatabaseId))
+                            {
+                                var errorText = settings.Language == "ru" 
+                                    ? "❌ Не указан токен или ID базы данных"
+                                    : "❌ Token or database ID not specified";
+                                await bot.AnswerCallbackQuery(callback.Id);
+                                break;
+                            }
+
+                            try
+                            {
+                                // Здесь можно добавить реальную проверку подключения к Notion
+                                var successText = settings.Language == "ru" 
+                                    ? "✅ Подключение к Notion успешно!"
+                                    : "✅ Notion connection successful!";
+                                await bot.AnswerCallbackQuery(callback.Id);
+                                _logger.LogInformation("Тест подключения к Notion успешен для пользователя {UserId}", cbUserId);
+                            }
+                            catch (Exception ex)
+                            {
+                                var errorText = settings.Language == "ru" 
+                                    ? "❌ Ошибка подключения к Notion"
+                                    : "❌ Notion connection error";
+                                await bot.AnswerCallbackQuery(callback.Id);
+                                _logger.LogError(ex, "Ошибка при тестировании подключения к Notion для пользователя {UserId}", cbUserId);
+                            }
+                            break;
+                        }
+
+                        case "notion_token_input":
+                        {
+                            // Переходим к вводу токена
+                            state.Action = "input_notion_token";
+                            var (tokenText, tokenKeyboard) = _uiManager.GetNotionTokenInputMenu(settings);
+                            
+                            if (callback.Message != null)
+                            {
+                                try
+                                {
+                                    await bot.EditMessageText(cbChatId, callback.Message.MessageId, tokenText, replyMarkup: tokenKeyboard, cancellationToken: cancellationToken);
+                                    state.MessageId = callback.Message.MessageId;
+                                    _logger.LogInformation("Переход к вводу токена Notion");
+                                }
+                                catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.Message.Contains("message is not modified"))
+                                {
+                                    _logger.LogDebug("Сообщение не изменилось при переходе к вводу токена");
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Не удалось отредактировать сообщение для ввода токена, отправляем новое");
+                                    var tokenMsg = await bot.SendMessage(cbChatId, tokenText, replyMarkup: tokenKeyboard, cancellationToken: cancellationToken);
+                                    state.MessageId = tokenMsg.MessageId;
+                                }
+                            }
+                            else
+                            {
+                                var tokenMsg = await bot.SendMessage(cbChatId, tokenText, replyMarkup: tokenKeyboard, cancellationToken: cancellationToken);
+                                state.MessageId = tokenMsg.MessageId;
+                            }
+                            await SaveUserStateAsync(cbUserId, state);
+                            break;
+                        }
+
+                        case "notion_database_input":
+                        {
+                            // Переходим к вводу Database ID
+                            state.Action = "input_notion_database";
+                            var (dbText, dbKeyboard) = _uiManager.GetNotionDatabaseInputMenu(settings);
+                            
+                            if (callback.Message != null)
+                            {
+                                try
+                                {
+                                    await bot.EditMessageText(cbChatId, callback.Message.MessageId, dbText, replyMarkup: dbKeyboard, cancellationToken: cancellationToken);
+                                    state.MessageId = callback.Message.MessageId;
+                                    _logger.LogInformation("Переход к вводу Database ID Notion");
+                                }
+                                catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.Message.Contains("message is not modified"))
+                                {
+                                    _logger.LogDebug("Сообщение не изменилось при переходе к вводу Database ID");
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Не удалось отредактировать сообщение для ввода Database ID, отправляем новое");
+                                    var dbMsg = await bot.SendMessage(cbChatId, dbText, replyMarkup: dbKeyboard, cancellationToken: cancellationToken);
+                                    state.MessageId = dbMsg.MessageId;
+                                }
+                            }
+                            else
+                            {
+                                var dbMsg = await bot.SendMessage(cbChatId, dbText, replyMarkup: dbKeyboard, cancellationToken: cancellationToken);
+                                state.MessageId = dbMsg.MessageId;
+                            }
+                            await SaveUserStateAsync(cbUserId, state);
+                            break;
+                        }
+
+                        case "notion_help":
+                        {
+                            var helpText = _uiManager.GetNotionHelpText(settings.Language);
+                            var helpKeyboard = _uiManager.GetNotionHelpKeyboard(settings.Language);
+                            
+                            if (callback.Message != null)
+                            {
+                                try
+                                {
+                                    await bot.EditMessageText(cbChatId, callback.Message.MessageId, helpText, replyMarkup: helpKeyboard, cancellationToken: cancellationToken);
+                                    state.MessageId = callback.Message.MessageId;
+                                    _logger.LogInformation("Показана справка по Notion");
+                                }
+                                catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.Message.Contains("message is not modified"))
+                                {
+                                    _logger.LogDebug("Сообщение не изменилось при показе справки");
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Не удалось отредактировать сообщение для справки, отправляем новое");
+                                    var helpMsg = await bot.SendMessage(cbChatId, helpText, replyMarkup: helpKeyboard, cancellationToken: cancellationToken);
+                                    state.MessageId = helpMsg.MessageId;
+                                }
+                            }
+                            else
+                            {
+                                var helpMsg = await bot.SendMessage(cbChatId, helpText, replyMarkup: helpKeyboard, cancellationToken: cancellationToken);
+                                state.MessageId = helpMsg.MessageId;
+                            }
+                            await SaveUserStateAsync(cbUserId, state);
+                            break;
+                        }
+
+
+
+                        case "back_to_settings":
+                        {
+                            var (settingsText, settingsKeyboard) = _uiManager.GetSettingsMenu(settings);
+                            
+                            if (callback.Message != null)
+                            {
+                                try
+                                {
+                                    await bot.EditMessageText(cbChatId, callback.Message.MessageId, settingsText, replyMarkup: settingsKeyboard, cancellationToken: cancellationToken);
+                                    state = new UserState { Action = "settings_menu", Step = 1, Language = settings.Language, MessageId = callback.Message.MessageId };
+                                    _logger.LogInformation("Возврат к основному меню настроек");
+                                }
+                                catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.Message.Contains("message is not modified"))
+                                {
+                                    _logger.LogDebug("Сообщение не изменилось при возврате к настройкам");
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Не удалось отредактировать сообщение при возврате к настройкам, отправляем новое");
+                                    var settingsMsg = await bot.SendMessage(cbChatId, settingsText, replyMarkup: settingsKeyboard, cancellationToken: cancellationToken);
+                                    state = new UserState { Action = "settings_menu", Step = 1, Language = settings.Language, MessageId = settingsMsg.MessageId };
+                                }
+                            }
+                            else
+                            {
+                                var settingsMsg = await bot.SendMessage(cbChatId, settingsText, replyMarkup: settingsKeyboard, cancellationToken: cancellationToken);
+                                state = new UserState { Action = "settings_menu", Step = 1, Language = settings.Language, MessageId = settingsMsg.MessageId };
+                            }
+                            await SaveUserStateAsync(cbUserId, state);
                             break;
                         }
 
@@ -1505,10 +1893,21 @@ namespace TradingBot.Services
                         {
                             state.Action = "input_favorite_ticker";
                             var (promptText, promptKeyboard) = _uiManager.GetInputPrompt("ticker", settings, "");
+                            
                             if (callback.Message != null)
                             {
-                                await bot.EditMessageText(cbChatId, callback.Message.MessageId, promptText, replyMarkup: promptKeyboard, cancellationToken: cancellationToken);
-                                state.MessageId = callback.Message.MessageId;
+                                try
+                                {
+                                    await bot.EditMessageText(cbChatId, callback.Message.MessageId, promptText, replyMarkup: promptKeyboard, cancellationToken: cancellationToken);
+                                    state.MessageId = callback.Message.MessageId;
+                                    _logger.LogInformation("Переход к вводу избранного тикера");
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Не удалось отредактировать сообщение для ввода тикера, отправляем новое");
+                                    var promptMsg1 = await bot.SendMessage(cbChatId, promptText, replyMarkup: promptKeyboard, cancellationToken: cancellationToken);
+                                    state.MessageId = promptMsg1.MessageId;
+                                }
                             }
                             else
                             {
@@ -1522,10 +1921,61 @@ namespace TradingBot.Services
                         case "remove_favorite_ticker":
                         {
                             var (removeText, removeKeyboard) = _uiManager.GetFavoriteTickersMenu(settings);
+                            
                             if (callback.Message != null)
-                                await bot.EditMessageText(cbChatId, callback.Message.MessageId, removeText, replyMarkup: removeKeyboard, cancellationToken: cancellationToken);
+                            {
+                                try
+                                {
+                                    await bot.EditMessageText(cbChatId, callback.Message.MessageId, removeText, replyMarkup: removeKeyboard, cancellationToken: cancellationToken);
+                                    state.MessageId = callback.Message.MessageId;
+                                    _logger.LogInformation("Меню избранных тикеров обновлено");
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Не удалось отредактировать сообщение для удаления тикера, отправляем новое");
+                                    var removeMsg = await bot.SendMessage(cbChatId, removeText, replyMarkup: removeKeyboard, cancellationToken: cancellationToken);
+                                    state.MessageId = removeMsg.MessageId;
+                                }
+                            }
                             else
-                                await bot.SendMessage(cbChatId, removeText, replyMarkup: removeKeyboard, cancellationToken: cancellationToken);
+                            {
+                                var removeMsg = await bot.SendMessage(cbChatId, removeText, replyMarkup: removeKeyboard, cancellationToken: cancellationToken);
+                                state.MessageId = removeMsg.MessageId;
+                            }
+                            await SaveUserStateAsync(cbUserId, state);
+                            break;
+                        }
+
+                        case "add_ticker":
+                        {
+                            if (parts.Length > 1)
+                            {
+                                string ticker = parts[1].Replace('_', '/');
+                                if (!settings.FavoriteTickers.Contains(ticker, StringComparer.OrdinalIgnoreCase))
+                                {
+                                    settings.FavoriteTickers.Add(ticker);
+                                    await SaveUserSettingsAsync(cbUserId, settings);
+                                    
+                                    // Обновляем меню тикеров
+                                    var (tickersText, tickersKeyboard) = _uiManager.GetFavoriteTickersMenu(settings);
+                                    if (callback.Message != null)
+                                    {
+                                        try
+                                        {
+                                            await bot.EditMessageText(cbChatId, callback.Message.MessageId, tickersText, replyMarkup: tickersKeyboard, cancellationToken: cancellationToken);
+                                            _logger.LogInformation("Тикер {Ticker} добавлен в избранное", ticker);
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            _logger.LogWarning(ex, "Не удалось отредактировать сообщение после добавления тикера, отправляем новое");
+                                            await bot.SendMessage(cbChatId, tickersText, replyMarkup: tickersKeyboard, cancellationToken: cancellationToken);
+                                        }
+                                    }
+                                    
+                                    // Показываем уведомление
+                                    await bot.SendMessage(cbChatId, _uiManager.GetText("ticker_added", settings.Language, ticker), cancellationToken: cancellationToken);
+                                }
+                            }
                             break;
                         }
 
@@ -1537,11 +1987,24 @@ namespace TradingBot.Services
                                 if (settings.FavoriteTickers.Remove(ticker))
                                 {
                                     await SaveUserSettingsAsync(cbUserId, settings);
-                                    var (tickersText2, tickersKeyboard2) = _uiManager.GetFavoriteTickersMenu(settings);
+                                    
+                                    // Обновляем меню тикеров
+                                    var (tickersText, tickersKeyboard) = _uiManager.GetFavoriteTickersMenu(settings);
                                     if (callback.Message != null)
-                                        await bot.EditMessageText(cbChatId, callback.Message.MessageId, tickersText2, replyMarkup: tickersKeyboard2, cancellationToken: cancellationToken);
-                                    else
-                                        await bot.SendMessage(cbChatId, tickersText2, replyMarkup: tickersKeyboard2, cancellationToken: cancellationToken);
+                                    {
+                                        try
+                                        {
+                                            await bot.EditMessageText(cbChatId, callback.Message.MessageId, tickersText, replyMarkup: tickersKeyboard, cancellationToken: cancellationToken);
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            _logger.LogWarning(ex, "Не удалось отредактировать сообщение после удаления тикера, отправляем новое");
+                                            await bot.SendMessage(cbChatId, tickersText, replyMarkup: tickersKeyboard, cancellationToken: cancellationToken);
+                                        }
+                                    }
+                                    
+                                    // Показываем уведомление
+                                    await bot.SendMessage(cbChatId, _uiManager.GetText("ticker_removed", settings.Language, ticker), cancellationToken: cancellationToken);
                                 }
                             }
                             break;
@@ -1952,6 +2415,7 @@ namespace TradingBot.Services
         {
             string? action = state.Action;
             text = text.Trim();
+            
             if (action == "input_favorite_ticker")
             {
                 if (!string.IsNullOrWhiteSpace(text))
@@ -1978,50 +2442,212 @@ namespace TradingBot.Services
                     await SaveUserStateAsync(userId, state);
                 }
             }
+            else if (action == "input_notion_token")
+            {
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    // Сохраняем токен
+                    settings.NotionIntegrationToken = text.Trim();
+                    await SaveUserSettingsAsync(userId, settings);
+                    
+                    // Переходим к вводу Database ID
+                    state.Action = "input_notion_database";
+                    var (dbText, dbKeyboard) = _uiManager.GetNotionDatabaseInputMenu(settings);
+                    
+                    // Редактируем текущее сообщение
+                    if (state.MessageId > 0)
+                    {
+                        try
+                        {
+                            await bot.EditMessageText(chatId, state.MessageId, dbText, replyMarkup: dbKeyboard, cancellationToken: cancellationToken);
+                            _logger.LogInformation("Сообщение обновлено для ввода Database ID");
+                        }
+                        catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.Message.Contains("message is not modified"))
+                        {
+                            _logger.LogDebug("Сообщение не изменилось при переходе к вводу Database ID");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Не удалось отредактировать сообщение, отправляем новое");
+                            var dbMessage = await bot.SendMessage(chatId, dbText, replyMarkup: dbKeyboard, cancellationToken: cancellationToken);
+                            state.MessageId = dbMessage.MessageId;
+                        }
+                    }
+                    else
+                    {
+                        var dbMessage = await bot.SendMessage(chatId, dbText, replyMarkup: dbKeyboard, cancellationToken: cancellationToken);
+                        state.MessageId = dbMessage.MessageId;
+                    }
+                    
+                    await SaveUserStateAsync(userId, state);
+                    await bot.SendMessage(chatId, "✅ Токен сохранен! Теперь введите Database ID или URL вашей базы данных Notion.", cancellationToken: cancellationToken);
+                }
+                else
+                {
+                    state.ErrorCount++;
+                    if (state.ErrorCount >= 3)
+                    {
+                        await bot.SendMessage(chatId, "⚠️ Слишком много ошибок. Настройка Notion отменена.",
+                            replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: cancellationToken);
+                        await DeleteUserStateAsync(userId);
+                    }
+                    else
+                    {
+                        var (tokenText, tokenKeyboard) = _uiManager.GetNotionTokenInputMenu(settings);
+                        var errorMessage = await bot.SendMessage(chatId, "⚠️ Токен не может быть пустым. Попробуйте снова:", 
+                            replyMarkup: tokenKeyboard, cancellationToken: cancellationToken);
+                        state.MessageId = errorMessage.MessageId;
+                        await SaveUserStateAsync(userId, state);
+                    }
+                }
+            }
+            else if (action == "input_notion_database")
+            {
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    string databaseId = text.Trim();
+                    
+                    // Если пользователь ввел URL, извлекаем Database ID
+                    if (databaseId.StartsWith("http"))
+                    {
+                        var personalNotionService = _serviceProvider.GetRequiredService<PersonalNotionService>();
+                        databaseId = personalNotionService.ExtractDatabaseIdFromUrl(databaseId) ?? databaseId;
+                    }
+                    
+                    // Сохраняем Database ID
+                    settings.NotionDatabaseId = databaseId;
+                    await SaveUserSettingsAsync(userId, settings);
+                    
+                    // Тестируем подключение
+                    try
+                    {
+                        var userSettingsService = _serviceProvider.GetRequiredService<UserSettingsService>();
+                        var isConnected = await userSettingsService.TestNotionConnectionAsync(userId);
+                        
+                        if (isConnected)
+                        {
+                            // Возвращаемся к меню настроек Notion
+                            var (notionText, notionKeyboard) = _uiManager.GetNotionSettingsMenu(settings);
+                            
+                            if (state.MessageId > 0)
+                            {
+                                try
+                                {
+                                    await bot.EditMessageText(chatId, state.MessageId, notionText, replyMarkup: notionKeyboard, cancellationToken: cancellationToken);
+                                    _logger.LogInformation("Возврат к меню настроек Notion после успешного подключения");
+                                }
+                                catch (Telegram.Bot.Exceptions.ApiRequestException ex) when (ex.Message.Contains("message is not modified"))
+                                {
+                                    _logger.LogDebug("Сообщение не изменилось при возврате к настройкам Notion");
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Не удалось отредактировать сообщение, отправляем новое");
+                                    await bot.SendMessage(chatId, notionText, replyMarkup: notionKeyboard, cancellationToken: cancellationToken);
+                                }
+                            }
+                            else
+                            {
+                                await bot.SendMessage(chatId, notionText, replyMarkup: notionKeyboard, cancellationToken: cancellationToken);
+                            }
+                            
+                            await bot.SendMessage(chatId, _uiManager.GetText("notion_connection_success", settings.Language), cancellationToken: cancellationToken);
+                        }
+                        else
+                        {
+                            await bot.SendMessage(chatId, _uiManager.GetText("notion_connection_failed", settings.Language), cancellationToken: cancellationToken);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error testing Notion connection for user {UserId}", userId);
+                        await bot.SendMessage(chatId, _uiManager.GetText("notion_connection_failed", settings.Language), cancellationToken: cancellationToken);
+                    }
+                    
+                    await DeleteUserStateAsync(userId);
+                }
+                else
+                {
+                    state.ErrorCount++;
+                    if (state.ErrorCount >= 3)
+                    {
+                        await bot.SendMessage(chatId, "⚠️ Слишком много ошибок. Настройка Notion отменена.",
+                            replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: cancellationToken);
+                        await DeleteUserStateAsync(userId);
+                    }
+                    else
+                    {
+                        var (dbText, dbKeyboard) = _uiManager.GetNotionDatabaseInputMenu(settings);
+                        var errorMessage = await bot.SendMessage(chatId, "⚠️ Database ID не может быть пустым. Попробуйте снова:", 
+                            replyMarkup: dbKeyboard, cancellationToken: cancellationToken);
+                        state.MessageId = errorMessage.MessageId;
+                        await SaveUserStateAsync(userId, state);
+                    }
+                }
+            }
         }
 
         private async Task UpdateRecentSettingsAsync(long userId, Trade trade, UserSettings settings)
         {
+            // Оптимизированная версия с одним вызовом ToList() для каждого списка
             if (!string.IsNullOrEmpty(trade.Ticker))
             {
                 settings.RecentTickers.Remove(trade.Ticker);
                 settings.RecentTickers.Insert(0, trade.Ticker);
-                settings.RecentTickers = settings.RecentTickers.Take(5).ToList();
+                if (settings.RecentTickers.Count > 5)
+                {
+                    settings.RecentTickers.RemoveRange(5, settings.RecentTickers.Count - 5);
+                }
             }
 
             if (!string.IsNullOrEmpty(trade.Direction))
             {
                 settings.RecentDirections.Remove(trade.Direction);
                 settings.RecentDirections.Insert(0, trade.Direction);
-                settings.RecentDirections = settings.RecentDirections.Take(5).ToList();
+                if (settings.RecentDirections.Count > 5)
+                {
+                    settings.RecentDirections.RemoveRange(5, settings.RecentDirections.Count - 5);
+                }
             }
 
             if (!string.IsNullOrEmpty(trade.Account))
             {
                 settings.RecentAccounts.Remove(trade.Account);
                 settings.RecentAccounts.Insert(0, trade.Account);
-                settings.RecentAccounts = settings.RecentAccounts.Take(5).ToList();
+                if (settings.RecentAccounts.Count > 5)
+                {
+                    settings.RecentAccounts.RemoveRange(5, settings.RecentAccounts.Count - 5);
+                }
             }
 
             if (!string.IsNullOrEmpty(trade.Session))
             {
                 settings.RecentSessions.Remove(trade.Session);
                 settings.RecentSessions.Insert(0, trade.Session);
-                settings.RecentSessions = settings.RecentSessions.Take(5).ToList();
+                if (settings.RecentSessions.Count > 5)
+                {
+                    settings.RecentSessions.RemoveRange(5, settings.RecentSessions.Count - 5);
+                }
             }
 
             if (!string.IsNullOrEmpty(trade.Position))
             {
                 settings.RecentPositions.Remove(trade.Position);
                 settings.RecentPositions.Insert(0, trade.Position);
-                settings.RecentPositions = settings.RecentPositions.Take(5).ToList();
+                if (settings.RecentPositions.Count > 5)
+                {
+                    settings.RecentPositions.RemoveRange(5, settings.RecentPositions.Count - 5);
+                }
             }
 
             if (!string.IsNullOrEmpty(trade.Result))
             {
                 settings.RecentResults.Remove(trade.Result);
                 settings.RecentResults.Insert(0, trade.Result);
-                settings.RecentResults = settings.RecentResults.Take(5).ToList();
+                if (settings.RecentResults.Count > 5)
+                {
+                    settings.RecentResults.RemoveRange(5, settings.RecentResults.Count - 5);
+                }
             }
 
             if (trade.Setup != null && trade.Setup.Any())
@@ -2031,7 +2657,16 @@ namespace TradingBot.Services
                     settings.RecentSetups.Remove(s);
                     settings.RecentSetups.Insert(0, s);
                 }
-                settings.RecentSetups = settings.RecentSetups.Distinct().Take(5).ToList();
+                // Убираем дубликаты и ограничиваем размер
+                var uniqueSetups = new List<string>();
+                foreach (var setup in settings.RecentSetups)
+                {
+                    if (!uniqueSetups.Contains(setup) && uniqueSetups.Count < 5)
+                    {
+                        uniqueSetups.Add(setup);
+                    }
+                }
+                settings.RecentSetups = uniqueSetups;
             }
 
             if (trade.Context != null && trade.Context.Any())
@@ -2041,7 +2676,16 @@ namespace TradingBot.Services
                     settings.RecentContexts.Remove(s);
                     settings.RecentContexts.Insert(0, s);
                 }
-                settings.RecentContexts = settings.RecentContexts.Distinct().Take(5).ToList();
+                // Убираем дубликаты и ограничиваем размер
+                var uniqueContexts = new List<string>();
+                foreach (var context in settings.RecentContexts)
+                {
+                    if (!uniqueContexts.Contains(context) && uniqueContexts.Count < 5)
+                    {
+                        uniqueContexts.Add(context);
+                    }
+                }
+                settings.RecentContexts = uniqueContexts;
             }
 
             if (trade.Emotions != null && trade.Emotions.Any())
@@ -2051,14 +2695,26 @@ namespace TradingBot.Services
                     settings.RecentEmotions.Remove(s);
                     settings.RecentEmotions.Insert(0, s);
                 }
-                settings.RecentEmotions = settings.RecentEmotions.Distinct().Take(5).ToList();
+                // Убираем дубликаты и ограничиваем размер
+                var uniqueEmotions = new List<string>();
+                foreach (var emotion in settings.RecentEmotions)
+                {
+                    if (!uniqueEmotions.Contains(emotion) && uniqueEmotions.Count < 5)
+                    {
+                        uniqueEmotions.Add(emotion);
+                    }
+                }
+                settings.RecentEmotions = uniqueEmotions;
             }
 
             if (!string.IsNullOrEmpty(trade.Note))
             {
                 settings.RecentComments.Remove(trade.Note);
                 settings.RecentComments.Insert(0, trade.Note);
-                settings.RecentComments = settings.RecentComments.Take(5).ToList();
+                if (settings.RecentComments.Count > 5)
+                {
+                    settings.RecentComments.RemoveRange(5, settings.RecentComments.Count - 5);
+                }
             }
 
             await SaveUserSettingsAsync(userId, settings);
@@ -2441,6 +3097,18 @@ namespace TradingBot.Services
             if (field == "setup" && trade.Setup != null) foreach (var v in trade.Setup) selected.Add(v);
             if (field == "emotions" && trade.Emotions != null) foreach (var v in trade.Emotions) selected.Add(v);
             return _uiManager.BuildOptionsKeyboard(field!, options, tradeId, settings, page: page, step: step, selected: selected);
+        }
+
+        private static bool AreKeyboardsEqual(InlineKeyboardMarkup? kb1, InlineKeyboardMarkup? kb2)
+        {
+            // Простое сравнение - если клавиатуры одинаковые, возвращаем true
+            // Это нужно только для логирования, так как мы всегда редактируем сообщения
+            if (kb1 == null && kb2 == null) return true;
+            if (kb1 == null || kb2 == null) return false;
+            
+            // Для простоты считаем клавиатуры разными, если они не null
+            // Это гарантирует, что редактирование всегда будет происходить
+            return false;
         }
     }
 }

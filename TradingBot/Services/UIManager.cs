@@ -51,12 +51,12 @@ namespace TradingBot.Services
         {
             ["ru"] = new Dictionary<string, string>
             {
-                ["welcome"] = "🚀 Добро пожаловать в TradingBot!\nЯ помогу вам вести учёт сделок.\nНажмите 'Далее' для обучения.",
-                ["onboarding_1"] = "📥 Вы можете добавлять сделки через скриншоты или вручную.",
-                ["onboarding_2"] = "📊 Просматривайте статистику и графики эквити.",
-                ["onboarding_3"] = "⚙ Настраивайте бота под себя (язык, уведомления).",
-                ["main_menu"] = "🚀 Добро пожаловать! Что будем делать?\n\n📊 Мои сделки:\n- ➕ Добавить сделку\n- 📈 Моя статистика\n- 📜 История сделок\n\n⚙️ Настройки:\n- 🔔 Уведомления (вкл/выкл)\n- 🌐 Язык (RU/EN)\n\n💡 Помощь и поддержка:\n- 🆘 Связаться с поддержкой\n\n📅 Сделок сегодня: {0} | 📈 Общий PnL: {1}% | ✅ Winrate: {2}%",
-                ["please_use_buttons"] = "👇 Пожалуйста, используйте кнопки ниже.",
+                ["welcome"] = "🚀 Добро пожаловать в TradingBot!\n\n📊 Я помогу вам вести учёт торговых сделок и анализировать результаты.\n\n💡 Основные возможности:\n• 📸 Добавление сделок через скриншоты\n• ⌨️ Ручной ввод данных\n• 📈 Детальная статистика и аналитика\n• 🌐 Синхронизация с Notion\n• 💾 Локальное хранение в SQLite\n\nНажмите 'Далее' для краткого обучения.",
+                ["onboarding_1"] = "📥 Добавление сделок\n\nУ вас есть два способа:\n\n📸 Скриншот: Отправьте фото с экрана терминала - я автоматически извлеку данные\n\n⌨️ Ручной ввод: Пошаговое заполнение всех полей сделки\n\nКаждый способ одинаково эффективен!",
+                ["onboarding_2"] = "📊 Аналитика и статистика\n\nПосле добавления сделок вы получите:\n\n📈 Детальную статистику по периодам\n📊 Графики эквити и P&L\n🎯 Анализ win rate и серий\n📅 Отчёты по дням/неделям/месяцам\n\nВся информация в удобном формате!",
+                ["onboarding_3"] = "⚙️ Настройки и интеграции\n\nНастройте бота под себя:\n\n🌐 Язык интерфейса (RU/EN)\n🔔 Уведомления о важных событиях\n📊 Интеграция с Notion для командной работы\n💾 Локальная база данных для приватности\n\n🌐 Персональная интеграция с Notion:\n• Подключите свою базу данных\n• Используйте собственные справочники\n• Синхронизируйте сделки\n\n🔧 Меню настроек:\n• Управление языком и уведомлениями\n• Подключение персонального Notion\n• Настройка избранных тикеров\n• Персональные справочники\n\nГотовы начать? Нажмите 'Главное меню'!",
+                ["main_menu"] = "🎯 TradingBot - Ваш помощник в торговле\n\n📊 Статистика за сегодня:\n📅 Сделок: {0} | 📈 PnL: {1}% | ✅ Win Rate: {2}%\n\n🚀 Что хотите сделать?\n\n➕ Добавить новую сделку\n📈 Посмотреть статистику\n📜 История всех сделок\n⚙️ Настройки бота\n🆘 Помощь и поддержка",
+                ["please_use_buttons"] = "👇 Пожалуйста, используйте кнопки ниже для навигации.",
                 ["error_occurred"] = "⚠️ Произошла ошибка. Попробуйте снова.",
                 ["trade_cancelled"] = "❌ Ввод сделки отменён.",
                 ["trade_saved"] = "✅ Сделка {0} (PnL={1}%) сохранена!",
@@ -79,7 +79,24 @@ namespace TradingBot.Services
                 ["win_streak"] = "🔥 Серия побед: {0} сделок подряд!",
                 ["loss_streak"] = "💔 Серия убытков: {0} сделок подряд. Не сдавайтесь!",
                 ["ticker_added"] = "✅ Тикер {0} добавлен в избранные.",
-                ["ticker_removed"] = "✅ Тикер {0} удалён из избранных.",
+                ["ticker_removed"] = "🗑️ Тикер {0} удален из избранного!",
+                
+                // Настройки Notion
+                ["notion_settings"] = "🌐 Настройки Notion",
+                ["notion_enabled"] = "✅ Notion подключен и активен",
+                ["notion_disabled"] = "❌ Notion не подключен",
+                ["notion_connect"] = "🔗 Подключить Notion",
+                ["notion_disconnect"] = "🔌 Отключить Notion",
+                ["notion_token"] = "🔑 Изменить токен интеграции",
+                ["notion_database"] = "🗄️ Изменить Database ID",
+                ["notion_test"] = "🧪 Проверить подключение",
+                ["notion_token_input"] = "🔑 Введите токен интеграции Notion\n\nОтправьте сообщение с вашим токеном интеграции Notion API",
+                ["notion_database_input"] = "🗄️ Введите Database ID\n\nОтправьте URL или ID вашей базы данных Notion",
+            ["notion_database_input"] = "🗄️ Введите ID базы данных или URL вашей базы данных Notion:\n\n📋 Инструкция:\n1️⃣ Откройте созданную базу данных в Notion\n2️⃣ Нажмите 'Share' в правом верхнем углу\n3️⃣ Найдите созданную интеграцию и пригласите её\n4️⃣ Скопируйте ID из URL (часть после notion.so/ и перед ?v=)\n5️⃣ Отправьте ID в следующем сообщении",
+                ["notion_connection_success"] = "✅ Подключение к Notion успешно установлено!",
+                ["notion_connection_failed"] = "❌ Не удалось подключиться к Notion\n\nПроверьте:\n• Правильность токена\n• Доступ к базе данных\n• Права интеграции",
+                ["notion_settings_saved"] = "✅ Настройки Notion сохранены",
+                ["notion_disconnected"] = "🔌 Notion отключен",
 
                 // Тексты шагов
                 ["step_1"] = "🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜ Шаг 1/14: Выберите тикер",
@@ -108,13 +125,13 @@ namespace TradingBot.Services
 
                 ["pending_trades"] = "⏳ Активные сделки:\n{0}",
                 ["no_pending_trades"] = "⏳ Нет активных сделок.",
-                ["stats_menu"] = "📊 Выберите период для статистики:",
-                ["stats_result"] = "📊 Статистика {0}:\nВсего сделок: {1}\nОбщий PnL: {2}%\nПрибыльных: {3}\nУбыточных: {4}\nWin Rate: {5}%",
+                ["stats_menu"] = "📊 Статистика:",
+                ["stats_result"] = "📊 Статистика за {0}:\n\n📈 Всего сделок: {1}\n💰 Общий PnL: {2}%\n✅ Прибыльных: {3}\n❌ Убыточных: {4}\n🎯 Винрейт: {5}%",
 
                 ["advanced_stats"] = "📈 Сделок: {0}\nОбщий PnL: {1}%\nСредний PnL: {2}%\nЛучший: {3}%\nХудший: {4}%\nWin Rate: {5}%",
                 ["date_label"] = "📅 Дата",
                 ["pnl_label"] = "📈 Накопленный PnL",
-                ["equity_curve"] = "📈 Кривая эквити",
+                ["equity_curve"] = "📈 Кривая эквити:",
                 ["error_graph"] = "⚠️ Ошибка при создании графика.",
                 ["export_success"] = "📄 Экспорт завершён успешно!",
 
@@ -134,9 +151,43 @@ namespace TradingBot.Services
                 ["period_week"] = "Неделя",
                 ["period_month"] = "Месяц",
                 ["period_all"] = "Всё время",
-                ["support"] = "🆘 Поддержка",
+                ["support"] = "🆘 Техподдержка",
                 ["help_menu"] = "💡 Выберите раздел помощи:",
                 ["whats_new"] = "📣 Что нового",
+                
+                // Новые тексты для настроек Notion
+                ["notion_settings"] = "🌐 Настройки Notion:",
+                ["notion_enabled"] = "✅ Notion подключен",
+                ["notion_disabled"] = "❌ Notion отключен",
+                ["notion_connect"] = "🔗 Подключить Notion",
+                ["notion_disconnect"] = "🔌 Отключить Notion",
+                ["notion_token"] = "🔑 Ввести токен",
+                ["notion_database"] = "🗄️ Ввести Database ID",
+                ["notion_test"] = "🧪 Проверить подключение",
+                ["notion_status"] = "📊 Статус подключения",
+                ["notion_token_input"] = "🔑 Введите ваш Integration Token от Notion:\n\n📋 Инструкция:\n1️⃣ Перейдите на https://www.notion.so/my-integrations\n2️⃣ Нажмите '+ New integration'\n3️⃣ Укажите название и выберите рабочее пространство\n4️⃣ Скопируйте секретный токен\n5️⃣ Отправьте его в следующем сообщении",
+                ["notion_database_input"] = "🗄️ Введите Database ID или URL вашей базы Notion:\n\n📋 Инструкция:\n1️⃣ Откройте вашу базу данных в Notion\n2️⃣ Нажмите 'Share' в правом верхнем углу\n3️⃣ Найдите созданную интеграцию и пригласите её\n4️⃣ Скопируйте ID из URL (часть после notion.so/ и до ?v=)\n5️⃣ Отправьте ID в следующем сообщении",
+                ["notion_connection_success"] = "✅ Подключение к Notion успешно!\n\nТеперь ваши сделки будут синхронизироваться с вашей персональной базой данных.",
+                ["notion_connection_failed"] = "❌ Не удалось подключиться к Notion.\n\nПроверьте:\n• Правильность токена\n• Правильность Database ID\n• Доступ интеграции к базе данных\n• Версию API (должна быть 2022-06-28)",
+                ["notion_token_invalid"] = "⚠️ Токен недействителен. Проверьте правильность ввода.",
+                ["notion_database_invalid"] = "⚠️ Database ID недействителен. Проверьте правильность ввода.",
+                ["notion_already_connected"] = "ℹ️ Notion уже подключен. Используйте 'Отключить' для изменения настроек.",
+                ["notion_not_connected"] = "ℹ️ Notion не подключен. Сначала подключите интеграцию.",
+                ["notion_disconnected"] = "✅ Notion успешно отключен. Ваши сделки больше не будут синхронизироваться.",
+                ["notion_help"] = "📚 Помощь по подключению Notion:\n\n🔑 Integration Token:\n• Создайте интеграцию на https://www.notion.so/my-integrations\n• Скопируйте секретный токен\n\n🗄️ Database ID:\n• Откройте базу данных в Notion\n• Скопируйте ID из URL\n• Предоставьте доступ интеграции\n\n❓ Нужна помощь? Обратитесь к документации Notion",
+            ["notion_settings"] = "🌐 Настройки Notion",
+            ["notion_enabled"] = "✅ Notion подключен",
+            ["notion_disabled"] = "❌ Notion не подключен",
+            ["notion_connect"] = "🔗 Подключить Notion",
+            ["notion_disconnect"] = "🔌 Отключить Notion",
+            ["notion_token"] = "🔑 Изменить токен",
+            ["notion_database"] = "🗄️ Изменить базу данных",
+            ["notion_test"] = "🧪 Тест подключения",
+            ["notion_test"] = "🧪 Тест подключения",
+            ["back_to_settings"] = "⬅️ Назад к настройкам",
+            ["notion_settings"] = "🌐 Настройки Notion",
+            ["notion_enabled"] = "✅ Notion подключен",
+            ["notion_disabled"] = "❌ Notion не подключен",
 
                 // Тексты для ввода
                 ["input_ticker"] = "📝 Введите тикер (например: BTC/USDT):",
@@ -152,17 +203,96 @@ namespace TradingBot.Services
                 ["input_result"] = "📝 Введите результат сделки:",
                 ["input_emotions"] = "📝 Введите эмоции:",
                 ["input_entry"] = "📝 Введите детали входа:",
-                ["input_note"] = "📝 Введите заметку:"
+                ["input_note"] = "📝 Введите заметку:",
+
+                // Тексты для уведомлений
+                ["notifications_enabled"] = "🔔 Уведомления включены!",
+                ["notifications_disabled"] = "🔕 Уведомления отключены!",
+                ["ticker_added"] = "✅ Тикер {0} добавлен в избранное!",
+                ["ticker_removed"] = "🗑️ Тикер {0} удален из избранного!",
+                ["back"] = "⬅️ Назад",
+                ["add_ticker"] = "➕ Добавить тикер",
+                ["remove_ticker"] = "🗑️ Удалить тикер",
+                ["support"] = "🆘 Техподдержка",
+                ["whatsnew"] = "📣 Что нового",
+                ["back_to_settings"] = "⬅️ Назад к настройкам",
+                ["no_trades"] = "📭 Нет сделок для отображения",
+                ["history_filters"] = "🔍 Фильтры истории:",
+                ["history_page"] = "Страница {0} из {1}",
+                ["export"] = "💾 Экспорт в CSV"
             },
             // Английские тексты (можно аналогично заполнить или оставить пустыми для примера)
             ["en"] = new Dictionary<string, string>
             {
+                ["welcome"] = "🚀 Welcome to TradingBot!\n\n📊 I'll help you track trading deals and analyze results.\n\n💡 Main features:\n• 📸 Add deals via screenshots\n• ⌨️ Manual data entry\n• 📈 Detailed statistics and analytics\n• 🌐 Notion synchronization\n• 💾 Local SQLite storage\n\nClick 'Next' for a quick tutorial.",
+                ["onboarding_1"] = "📥 Adding Deals\n\nYou have two ways:\n\n📸 Screenshot: Send a photo of your terminal screen - I'll automatically extract data\n\n⌨️ Manual entry: Step-by-step filling of all deal fields\n\nBoth methods are equally effective!",
+                ["onboarding_2"] = "📊 Analytics and Statistics\n\nAfter adding deals, you'll get:\n\n📈 Detailed statistics by periods\n📊 Equity and P&L charts\n🎯 Win rate and streak analysis\n📅 Reports by days/weeks/months\n\nAll information in a convenient format!",
+                ["onboarding_3"] = "⚙️ Settings and Integrations\n\nConfigure the bot for yourself:\n\n🌐 Interface language (RU/EN)\n🔔 Notifications about important events\n📊 Notion integration for team work\n💾 Local database for privacy\n\n🌐 Personal Notion integration:\n• Connect your own database\n• Use custom dictionaries\n• Sync your trades\n\n🔧 Settings menu:\n• Language and notification management\n• Personal Notion connection\n• Favorite tickers setup\n• Personal dictionaries\n\nReady to start? Click 'Main Menu'!",
+                ["main_menu"] = "🎯 TradingBot - Your Trading Assistant\n\n📊 Today's Statistics:\n📅 Deals: {0} | 📈 PnL: {1}% | ✅ Win Rate: {2}%\n\n🚀 What would you like to do?\n\n➕ Add new deal\n📈 View statistics\n📜 Deal history\n⚙️ Bot settings\n🆘 Help and support",
                 ["main_menu_button"] = "◀️ Main Menu",
                 ["skip"] = "➡ Skip",
                 ["cancel"] = "🚫 Cancel",
                 ["confirm"] = "✅ Confirm",
                 ["edit"] = "✏️ Edit",
-                ["delete"] = "🗑 Delete"
+                ["delete"] = "🗑 Delete",
+                ["please_use_buttons"] = "👇 Please use the buttons below for navigation.",
+                ["other"] = "Other...",
+                ["prefill_last"] = "As in last",
+                ["input_manually"] = "⌨️ Enter manually",
+                
+                // English versions of Notion settings texts
+                ["notion_settings"] = "🌐 Notion Settings:",
+                ["notion_enabled"] = "✅ Notion connected",
+                ["notion_disabled"] = "❌ Notion disconnected",
+                ["notion_connect"] = "🔗 Connect Notion",
+                ["notion_disconnect"] = "🔌 Disconnect Notion",
+                ["notion_token"] = "🔑 Enter token",
+                ["notion_database"] = "🗄️ Enter Database ID",
+                ["notion_test"] = "🧪 Test connection",
+                ["notion_status"] = "📊 Connection status",
+                ["notion_token_input"] = "🔑 Enter your Notion Integration Token:\n\n📋 Instructions:\n1️⃣ Go to https://www.notion.so/my-integrations\n2️⃣ Click '+ New integration'\n3️⃣ Enter name and select workspace\n4️⃣ Copy the secret token\n5️⃣ Send it in the next message",
+                ["notion_database_input"] = "🗄️ Enter Database ID or URL of your Notion database:\n\n📋 Instructions:\n1️⃣ Open your database in Notion\n2️⃣ Click 'Share' in the top right corner\n3️⃣ Find the created integration and invite it\n4️⃣ Copy ID from URL (part after notion.so/ and before ?v=)\n5️⃣ Send the ID in the next message",
+                ["notion_connection_success"] = "✅ Successfully connected to Notion!\n\nNow your trades will be synchronized with your personal database.",
+                ["notion_connection_failed"] = "❌ Failed to connect to Notion.\n\nCheck:\n• Token correctness\n• Database ID correctness\n• Integration access to database\n• API version (should be 2022-06-28)",
+                ["notion_token_invalid"] = "⚠️ Token is invalid. Check the input.",
+                ["notion_database_invalid"] = "⚠️ Database ID is invalid. Check the input.",
+                ["notion_already_connected"] = "ℹ️ Notion is already connected. Use 'Disconnect' to change settings.",
+                ["notion_not_connected"] = "ℹ️ Notion is not connected. First connect the integration.",
+                ["notion_disconnected"] = "✅ Notion successfully disconnected. Your trades will no longer be synchronized.",
+                ["notion_help"] = "📚 Notion Connection Help:\n\n🔑 Integration Token:\n• Create integration at https://www.notion.so/my-integrations\n• Copy the secret token\n\n🗄️ Database ID:\n• Open database in Notion\n• Copy ID from URL\n• Grant access to integration\n\n❓ Need help? Check Notion documentation",
+                ["notion_disconnected"] = "✅ Notion successfully disconnected. Your trades will no longer be synchronized.",
+                ["notion_help"] = "📚 Notion Connection Help:\n\n🔑 Integration Token:\n• Create integration at https://www.notion.so/my-integrations\n• Copy the secret token\n\n🗄️ Database ID:\n• Open database in Notion\n• Copy ID from URL\n• Grant access to integration\n\n❓ Need help? Check Notion documentation",
+                ["notion_settings"] = "🌐 Notion Settings",
+                ["notion_enabled"] = "✅ Notion connected",
+                ["notion_disabled"] = "❌ Notion not connected",
+                ["notion_connect"] = "🔗 Connect Notion",
+                ["notion_disconnect"] = "🔌 Disconnect Notion",
+                ["notion_token"] = "🔑 Change token",
+                ["notion_database"] = "🗄️ Change database",
+                ["notion_test"] = "🧪 Test connection",
+                ["notion_database_input"] = "🗄️ Enter Database ID or URL of your Notion database:\n\n📋 Instructions:\n1️⃣ Open your database in Notion\n2️⃣ Click 'Share' in the top right corner\n3️⃣ Find the created integration and invite it\n4️⃣ Copy ID from URL (part after notion.so/ and before ?v=)\n5️⃣ Send the ID in the next message",
+
+                // Тексты для уведомлений
+                ["notifications_enabled"] = "🔔 Notifications enabled!",
+                ["notifications_disabled"] = "🔕 Notifications disabled!",
+                ["ticker_added"] = "✅ Ticker {0} added to favorites!",
+                ["ticker_removed"] = "🗑️ Ticker {0} removed from favorites!",
+                ["back"] = "⬅️ Back",
+                ["add_ticker"] = "➕ Add Ticker",
+                ["remove_ticker"] = "🗑️ Remove Ticker",
+                ["support"] = "🆘 Support",
+                ["whatsnew"] = "📣 What's new",
+                ["back_to_settings"] = "⬅️ Back to settings",
+                ["period_week"] = "Week",
+                ["period_month"] = "Month",
+                ["period_all"] = "All time",
+                ["stats_menu"] = "📊 Statistics:",
+                ["stats_result"] = "📊 Statistics for {0}:\n\n📈 Total trades: {1}\n💰 Total PnL: {2}%\n✅ Profitable: {3}\n❌ Losing: {4}\n🎯 Win rate: {5}%",
+                ["equity_curve"] = "📈 Equity curve:",
+                ["no_trades"] = "📭 No trades to display",
+                ["history_filters"] = "🔍 History filters:",
+                ["history_page"] = "Page {0} of {1}",
+                ["export"] = "💾 Export to CSV"
                 // ... остальные ключи для EN инициализированы по аналогии ...
             }
         };
@@ -255,6 +385,9 @@ namespace TradingBot.Services
             {
                 buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("◀ Назад", $"onboarding_{step - 1}") });
             }
+
+            // Добавляем кнопку "Пропустить обучение" на всех экранах
+            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("⏭️ Пропустить обучение", "main") });
 
             return (text, new InlineKeyboardMarkup(buttons));
         }
@@ -378,7 +511,7 @@ namespace TradingBot.Services
                             buttons.Add(new[]
                             {
                                                             InlineKeyboardButton.WithCallbackData(extraDirections[i], $"set_direction_{SanitizeCallbackData(extraDirections[i])}_trade_{tradeId}"),
-                            InlineKeyboardButton.WithCallbackData(extraDirections[i + 1], $"set_direction_{SanitizeCallbackData(extraDirections[i + 1])}_trade_{tradeId}")
+                        InlineKeyboardButton.WithCallbackData(extraDirections[i + 1], $"set_direction_{SanitizeCallbackData(extraDirections[i + 1])}_trade_{tradeId}")
                             });
                         else
                             buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(extraDirections[i], $"set_direction_{SanitizeCallbackData(extraDirections[i])}_trade_{tradeId}") });
@@ -599,7 +732,7 @@ namespace TradingBot.Services
                     InlineKeyboardButton.WithCallbackData("Long", "historyfilter_direction_Long"),
                     InlineKeyboardButton.WithCallbackData("Short", "historyfilter_direction_Short")
                 },
-                new[] { InlineKeyboardButton.WithCallbackData("◀ Назад", "history") }
+                new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "history") }
             };
 
             return (text, new InlineKeyboardMarkup(buttons));
@@ -652,7 +785,7 @@ namespace TradingBot.Services
                 new[] { InlineKeyboardButton.WithCallbackData(GetText("period_week", settings.Language), "statsperiod_week") },
                 new[] { InlineKeyboardButton.WithCallbackData(GetText("period_month", settings.Language), "statsperiod_month") },
                 new[] { InlineKeyboardButton.WithCallbackData(GetText("period_all", settings.Language), "statsperiod_all") },
-                new[] { InlineKeyboardButton.WithCallbackData(GetText("main_menu_button", settings.Language), "main") }
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "main") }
             });
             return (text, keyboard);
         }
@@ -669,7 +802,7 @@ namespace TradingBot.Services
                 profitable, losing, winRate);
             var keyboard = new InlineKeyboardMarkup(new[]
             {
-                new[] { InlineKeyboardButton.WithCallbackData(GetText("main_menu_button", settings.Language), "main") }
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "main") }
             });
             return (text, keyboard);
         }
@@ -682,7 +815,7 @@ namespace TradingBot.Services
                 new[] { InlineKeyboardButton.WithCallbackData(GetText("period_week", settings.Language), "advstatsperiod_week") },
                 new[] { InlineKeyboardButton.WithCallbackData(GetText("period_month", settings.Language), "advstatsperiod_month") },
                 new[] { InlineKeyboardButton.WithCallbackData(GetText("period_all", settings.Language), "advstatsperiod_all") },
-                new[] { InlineKeyboardButton.WithCallbackData(GetText("main_menu_button", settings.Language), "main") }
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "main") }
             });
             return (text, keyboard);
         }
@@ -717,35 +850,35 @@ namespace TradingBot.Services
                     sb.AppendLine($"📄 Context: {ctx}");
                     sb.AppendLine("");
                 }
-                sb.AppendLine($"Страница {page} из {totalPages}");
+                sb.AppendLine(GetText("history_page", settings.Language, page, totalPages));
             }
 
             var buttons = new List<InlineKeyboardButton[]>();
             if (ordered.Any())
             {
                 var pag = new List<InlineKeyboardButton>();
-                if (page > 1) pag.Add(InlineKeyboardButton.WithCallbackData("⬅️ Назад", $"history_page_{page - 1}_period_{period}_filter_{filter ?? "none"}"));
-                if (page < totalPages) pag.Add(InlineKeyboardButton.WithCallbackData("…Ещё", $"history_page_{page + 1}_period_{period}_filter_{filter ?? "none"}"));
+                if (page > 1) pag.Add(InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), $"history_page_{page - 1}_period_{period}_filter_{filter ?? "none"}"));
+                if (page < totalPages) pag.Add(InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "…Ещё" : "…More", $"history_page_{page + 1}_period_{period}_filter_{filter ?? "none"}"));
                 if (pag.Any()) buttons.Add(pag.ToArray());
 
-                buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("🔍 Фильтры", $"history_filter_menu") });
-                buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("💾 Экспорт в CSV", "export") });
+                buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("history_filters", settings.Language), $"history_filter_menu") });
+                buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("export", settings.Language), "export") });
             }
 
-            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("main_menu_button", settings.Language), "main") });
+            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "main") });
             return (sb.ToString(), new InlineKeyboardMarkup(buttons));
         }
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetHistoryFiltersMenu(UserSettings settings)
         {
-            string text = "🔍 Фильтры истории:\nВыберите категорию:";
+            string text = settings.Language == "ru" ? "🔍 Фильтры истории:\nВыберите категорию:" : "🔍 History filters:\nSelect category:";
             var rows = new List<InlineKeyboardButton[]>
             {
-                new[] { InlineKeyboardButton.WithCallbackData("📅 По дате", "historyfilter_date_menu") },
-                new[] { InlineKeyboardButton.WithCallbackData("📈 По тикеру", "historyfilter_ticker_menu") },
-                new[] { InlineKeyboardButton.WithCallbackData("↕ По направлению", "historyfilter_direction_menu") },
-                new[] { InlineKeyboardButton.WithCallbackData("✅/❌ По результату", "historyfilter_result_menu") },
-                new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "history") }
+                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "📅 По дате" : "📅 By date", "historyfilter_date_menu") },
+                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "📈 По тикеру" : "📈 By ticker", "historyfilter_ticker_menu") },
+                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "↕ По направлению" : "↕ By direction", "historyfilter_direction_menu") },
+                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "✅/❌ По результату" : "✅/❌ By result", "historyfilter_result_menu") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "history") }
             };
             return (text, new InlineKeyboardMarkup(rows));
         }
@@ -756,9 +889,9 @@ namespace TradingBot.Services
             switch (type)
             {
                 case "date":
-                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData("7 дней", "historyfilter_date_7d") });
-                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData("30 дней", "historyfilter_date_30d") });
-                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData("Все время", "historyfilter_date_all") });
+                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "7 дней" : "7 days", "historyfilter_date_7d") });
+                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "30 дней" : "30 days", "historyfilter_date_30d") });
+                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "Все время" : "All time", "historyfilter_date_all") });
                     break;
                 case "ticker":
                     if (settings.FavoriteTickers.Any())
@@ -768,18 +901,18 @@ namespace TradingBot.Services
                             rows.Add(new[] { InlineKeyboardButton.WithCallbackData(t, $"historyfilter_ticker_{SanitizeCallbackData(t)}") });
                         }
                     }
-                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData("Все", "historyfilter_ticker_all") });
+                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "Все" : "All", "historyfilter_ticker_all") });
                     break;
                 case "direction":
                     rows.Add(new[] { InlineKeyboardButton.WithCallbackData("LONG", "historyfilter_direction_Long") });
                     rows.Add(new[] { InlineKeyboardButton.WithCallbackData("SHORT", "historyfilter_direction_Short") });
                     break;
                 case "result":
-                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData("✅ Профит", "historyfilter_result_profit") });
-                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData("❌ Убыток", "historyfilter_result_loss") });
+                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "✅ Профит" : "✅ Profit", "historyfilter_result_profit") });
+                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "❌ Убыток" : "❌ Loss", "historyfilter_result_loss") });
                     break;
             }
-            rows.Add(new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "history_filter_menu") });
+            rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "history_filter_menu") });
             return new InlineKeyboardMarkup(rows);
         }
 
@@ -801,21 +934,37 @@ namespace TradingBot.Services
 
             var keyboard = new InlineKeyboardMarkup(new[]
             {
-                new[] { InlineKeyboardButton.WithCallbackData(GetText("main_menu_button", settings.Language), "main") }
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "history") }
             });
             return (text, keyboard);
         }
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetFavoriteTickersMenu(UserSettings settings)
         {
-            string text = "📈 Избранные тикеры:\n\n";
-            if (settings.FavoriteTickers.Any())
+            string text;
+            if (settings.Language == "ru")
             {
-                text += string.Join(", ", settings.FavoriteTickers);
+                text = "📈 Избранные тикеры:\n\n";
+                if (settings.FavoriteTickers.Any())
+                {
+                    text += string.Join(", ", settings.FavoriteTickers);
+                }
+                else
+                {
+                    text += "Пусто";
+                }
             }
             else
             {
-                text += "Пусто";
+                text = "📈 Favorite tickers:\n\n";
+                if (settings.FavoriteTickers.Any())
+                {
+                    text += string.Join(", ", settings.FavoriteTickers);
+                }
+                else
+                {
+                    text += "Empty";
+                }
             }
 
             var buttons = new List<InlineKeyboardButton[]>();
@@ -823,15 +972,24 @@ namespace TradingBot.Services
             {
                 buttons.Add(new[] { InlineKeyboardButton.WithCallbackData($"❌ {ticker}", $"remove_ticker_{SanitizeCallbackData(ticker)}") });
             }
-            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("➕ Добавить тикер", "add_favorite_ticker") });
-            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "settings") });
+            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("add_ticker", settings.Language), "add_favorite_ticker") });
+            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("back_to_settings", settings.Language), "settings") });
 
             return (text, new InlineKeyboardMarkup(buttons));
         }
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetRemoveFavoriteTickerMenu(UserSettings settings)
         {
-            string text = "❌ Выберите тикер для удаления:";
+            string text;
+            if (settings.Language == "ru")
+            {
+                text = "❌ Выберите тикер для удаления:";
+            }
+            else
+            {
+                text = "❌ Select ticker to remove:";
+            }
+            
             var buttons = new List<InlineKeyboardButton[]>();
 
             foreach (var ticker in settings.FavoriteTickers)
@@ -839,24 +997,36 @@ namespace TradingBot.Services
                 buttons.Add(new[] { InlineKeyboardButton.WithCallbackData($"❌ {ticker}", $"remove_ticker_{SanitizeCallbackData(ticker)}") });
             }
 
-            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("◀️ Назад", "settings_tickers") });
+            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("back_to_settings", settings.Language), "settings_tickers") });
 
             return (text, new InlineKeyboardMarkup(buttons));
         }
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetHelpMenu(UserSettings settings)
         {
-            string text = "💡 Помощь:\n\n" +
-                         "📸 Отправьте скриншот сделки для автоматического заполнения\n" +
-                         "⌨️ Или создайте сделку вручную через главное меню\n" +
-                         "📊 Просматривайте статистику и анализируйте результаты\n" +
-                         "⚙️ Настройте бота под себя в настройках";
+            string text;
+            if (settings.Language == "ru")
+            {
+                text = "💡 Помощь:\n\n" +
+                       "📸 Отправьте скриншот сделки для автоматического заполнения\n" +
+                       "⌨️ Или создайте сделку вручную через главное меню\n" +
+                       "📊 Просматривайте статистику и анализируйте результаты\n" +
+                       "⚙️ Настройте бота под себя в настройках";
+            }
+            else
+            {
+                text = "💡 Help:\n\n" +
+                       "📸 Send a screenshot of the deal for automatic filling\n" +
+                       "⌨️ Or create a deal manually through the main menu\n" +
+                       "📊 View statistics and analyze results\n" +
+                       "⚙️ Configure the bot for yourself in settings";
+            }
 
             var buttons = new List<InlineKeyboardButton[]>
             {
-                new[] { InlineKeyboardButton.WithCallbackData("🆘 Техподдержка", "support") },
-                new[] { InlineKeyboardButton.WithCallbackData("📣 Что нового", "whatsnew") },
-                new[] { InlineKeyboardButton.WithCallbackData(GetText("main_menu_button", settings.Language), "main") }
+                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "🆘 Техподдержка" : "🆘 Support", "support") },
+                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "📣 Что нового" : "📣 What's new", "whatsnew") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "main") }
             };
 
             return (text, new InlineKeyboardMarkup(buttons));
@@ -864,21 +1034,243 @@ namespace TradingBot.Services
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetSettingsMenu(UserSettings settings)
         {
-            string text =
-                "⚙️ Настройки:\n\n" +
-                $"🌐 Сменить язык: {(settings.Language == "ru" ? "Русский" : "English")}\n" +
-                $"🔔 Уведомления: {(settings.NotificationsEnabled ? "Включены ✅" : "Выключены ❌")}\n" +
-                $"📈 Избранные тикеры: {settings.FavoriteTickers.Count}";
+            string text;
+            if (settings.Language == "ru")
+            {
+                text = "⚙️ Настройки:\n\n" +
+                       $"🌐 Язык: {(settings.Language == "ru" ? "Русский 🇷🇺" : "English 🇺🇸")}\n" +
+                       $"🔔 Уведомления: {(settings.NotificationsEnabled ? "Включены ✅" : "Выключены ❌")}\n" +
+                       $"📈 Избранные тикеры: {settings.FavoriteTickers.Count} шт.\n" +
+                       $"🌐 Notion: {(settings.NotionEnabled ? "Подключен ✅" : "Отключен ❌")}";
+            }
+            else
+            {
+                text = "⚙️ Settings:\n\n" +
+                       $"🌐 Language: {(settings.Language == "ru" ? "Russian 🇷🇺" : "English 🇺🇸")}\n" +
+                       $"🔔 Notifications: {(settings.NotificationsEnabled ? "Enabled ✅" : "Disabled ❌")}\n" +
+                       $"📈 Favorite tickers: {settings.FavoriteTickers.Count} items\n" +
+                       $"🌐 Notion: {(settings.NotionEnabled ? "Connected ✅" : "Disconnected ❌")}";
+            }
 
             var rows = new List<InlineKeyboardButton[]>
             {
-                new[] { InlineKeyboardButton.WithCallbackData("🌐 Сменить язык", "settings_language") },
-                new[] { InlineKeyboardButton.WithCallbackData(settings.NotificationsEnabled ? "🔔 Уведомления: ✅" : "🔔 Уведомления: ❌", "settings_notifications") },
-                new[] { InlineKeyboardButton.WithCallbackData("📈 Избранные тикеры", "settings_tickers") },
-                new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "main") }
+                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "🌐 Сменить язык" : "🌐 Change language", "settings_language") },
+                new[] { InlineKeyboardButton.WithCallbackData(
+                    settings.Language == "ru" 
+                        ? (settings.NotificationsEnabled ? "🔔 Уведомления: ✅" : "🔔 Уведомления: ❌")
+                        : (settings.NotificationsEnabled ? "🔔 Notifications: ✅" : "🔔 Notifications: ❌"), 
+                    "settings_notifications") },
+                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "📈 Избранные тикеры" : "📈 Favorite tickers", "settings_tickers") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_settings", settings.Language), "settings_notion") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "main") }
             };
 
             return (text, new InlineKeyboardMarkup(rows));
+        }
+
+        /// <summary>
+        /// Меню настроек Notion
+        /// </summary>
+        public (string Text, InlineKeyboardMarkup Keyboard) GetNotionSettingsMenu(UserSettings settings)
+        {
+            var status = settings.NotionEnabled ? GetText("notion_enabled", settings.Language) : GetText("notion_disabled", settings.Language);
+            
+            string text = $"{GetText("notion_settings", settings.Language)}\n\n{status}";
+            
+            if (settings.NotionEnabled)
+            {
+                if (settings.Language == "ru")
+                {
+                    text += $"\n\n🔑 Токен: {(string.IsNullOrEmpty(settings.NotionIntegrationToken) ? "❌ Не указан" : "✅ Указан")}";
+                    text += $"\n🗄️ База данных: {(string.IsNullOrEmpty(settings.NotionDatabaseId) ? "❌ Не указана" : "✅ Указана")}";
+                }
+                else
+                {
+                    text += $"\n\n🔑 Token: {(string.IsNullOrEmpty(settings.NotionIntegrationToken) ? "❌ Not specified" : "✅ Specified")}";
+                    text += $"\n🗄️ Database: {(string.IsNullOrEmpty(settings.NotionDatabaseId) ? "❌ Not specified" : "✅ Specified")}";
+                }
+            }
+            
+            var rows = new List<InlineKeyboardButton[]>();
+            
+            if (settings.NotionEnabled)
+            {
+                // Если Notion подключен, показываем опции управления
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_token", settings.Language), "notion_token_input") });
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_database", settings.Language), "notion_database_input") });
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_test", settings.Language), "notion_test_connection") });
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_disconnect", settings.Language), "notion_disconnect") });
+            }
+            else
+            {
+                // Если Notion не подключен, показываем опцию подключения
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_connect", settings.Language), "notion_connect") });
+            }
+            
+            // Добавляем кнопку помощи
+            var helpText = settings.Language == "ru" ? "❓ Помощь" : "❓ Help";
+            rows.Add(new[] { InlineKeyboardButton.WithCallbackData(helpText, "notion_help") });
+            rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("back_to_settings", settings.Language), "settings") });
+            
+            return (text, new InlineKeyboardMarkup(rows));
+        }
+
+        /// <summary>
+        /// Меню ввода токена Notion
+        /// </summary>
+        public (string Text, InlineKeyboardMarkup Keyboard) GetNotionTokenInputMenu(UserSettings settings)
+        {
+            string text = GetText("notion_token_input", settings.Language);
+            var keyboard = new InlineKeyboardMarkup(new[]
+            {
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("back_to_settings", settings.Language), "settings_notion") }
+            });
+            
+            return (text, keyboard);
+        }
+
+        /// <summary>
+        /// Меню ввода Database ID Notion
+        /// </summary>
+        public (string Text, InlineKeyboardMarkup Keyboard) GetNotionDatabaseInputMenu(UserSettings settings)
+        {
+            string text = GetText("notion_database_input", settings.Language);
+            var keyboard = new InlineKeyboardMarkup(new[]
+            {
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("back_to_settings", settings.Language), "settings_notion") }
+            });
+            
+            return (text, keyboard);
+        }
+
+        /// <summary>
+        /// Справка по подключению Notion
+        /// </summary>
+        public string GetNotionHelpText(string language)
+        {
+            if (language == "ru")
+            {
+                return @"🌐 Как подключить свою базу данных Notion
+
+📋 Пошаговая инструкция:
+
+1️⃣ **Создание интеграции**
+   • Перейдите на https://www.notion.so/my-integrations
+   • Нажмите 'New integration'
+   • Введите название (например, 'TradingBot')
+   • Выберите рабочее пространство
+   • Скопируйте 'Internal Integration Token'
+
+2️⃣ **Подготовка базы данных**
+   • Создайте новую страницу в Notion
+   • Добавьте базу данных (Database)
+   • Настройте свойства для торговых сделок:
+     - Ticker (Text)
+     - Direction (Select: Long/Short)
+     - PnL (Number)
+     - Date (Date)
+     - Account (Select)
+     - Session (Select)
+     - Position (Select)
+     - Context (Select)
+     - Setup (Select)
+     - Result (Select)
+     - Emotions (Multi-select)
+     - RR (Text)
+     - Risk (Number)
+
+3️⃣ **Предоставление доступа**
+   • Откройте созданную базу данных
+   • Нажмите 'Share' в правом верхнем углу
+   • Добавьте созданную интеграцию
+   • Установите права 'Can edit'
+
+4️⃣ **Получение Database ID**
+   • Откройте базу данных в браузере
+   • Скопируйте ID из URL:
+     https://notion.so/workspace/DATABASE_ID?v=...
+   • Или скопируйте весь URL
+
+5️⃣ **Подключение в боте**
+   • Нажмите 'Подключить Notion'
+   • Введите токен интеграции
+   • Введите Database ID или URL
+   • Проверьте подключение
+
+❓ Если что-то не работает:
+   • Проверьте правильность токена
+   • Убедитесь, что интеграция добавлена в базу
+   • Проверьте права доступа
+   • Убедитесь, что база данных содержит нужные свойства";
+            }
+            else
+            {
+                return @"🌐 How to connect your Notion database
+
+📋 Step-by-step guide:
+
+1️⃣ **Create Integration**
+   • Go to https://www.notion.so/my-integrations
+   • Click 'New integration'
+   • Enter name (e.g., 'TradingBot')
+   • Select workspace
+   • Copy 'Internal Integration Token'
+
+2️⃣ **Prepare Database**
+   • Create new page in Notion
+   • Add database
+   • Configure properties for trades:
+     - Ticker (Text)
+     - Direction (Select: Long/Short)
+     - PnL (Number)
+     - Date (Date)
+     - Account (Select)
+     - Session (Select)
+     - Position (Select)
+     - Context (Select)
+     - Setup (Select)
+     - Result (Select)
+     - Emotions (Multi-select)
+     - RR (Text)
+     - Risk (Number)
+
+3️⃣ **Grant Access**
+   • Open created database
+   • Click 'Share' in top right
+   • Add created integration
+   • Set permissions to 'Can edit'
+
+4️⃣ **Get Database ID**
+   • Open database in browser
+   • Copy ID from URL:
+     https://notion.so/workspace/DATABASE_ID?v=...
+   • Or copy entire URL
+
+5️⃣ **Connect in Bot**
+   • Click 'Connect Notion'
+   • Enter integration token
+   • Enter Database ID or URL
+   • Test connection
+
+❓ If something doesn't work:
+   • Check token correctness
+   • Ensure integration is added to database
+   • Check access permissions
+   • Verify database has required properties";
+            }
+        }
+
+        /// <summary>
+        /// Клавиатура для справки по Notion
+        /// </summary>
+        public InlineKeyboardMarkup GetNotionHelpKeyboard(string language)
+        {
+            var rows = new List<InlineKeyboardButton[]>
+            {
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("back_to_settings", language), "settings_notion") }
+            };
+            
+            return new InlineKeyboardMarkup(rows);
         }
 
         // Метод установки списков опций, вызывается при каждом открытии /start или /menu

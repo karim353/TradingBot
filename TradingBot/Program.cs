@@ -44,23 +44,43 @@ var host = Host.CreateDefaultBuilder(args)
         // Общие зависимости
         services.AddSingleton<PnLService>();
         services.AddSingleton<UIManager>();
+        services.AddSingleton<KeyboardService>();
         services.AddMemoryCache();
         services.AddScoped<TradeRepository>();
+        services.AddScoped<UserSettingsService>();
+        
+        // HTTP клиент для Notion API
+        services.AddHttpClient<NotionService>((provider, client) =>
+        {
+            string? notionToken = config["Notion:ApiToken"];
+            if (!string.IsNullOrWhiteSpace(notionToken))
+            {
+                client.BaseAddress = new Uri("https://api.notion.com/v1/");
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {notionToken}");
+                client.DefaultRequestHeaders.Add("Notion-Version", "2022-06-28");
+            }
+        });
+        
+        // Фабрика HTTP клиентов для персональных настроек Notion
+        services.AddHttpClient<NotionHttpClientFactory>((provider, client) =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        services.AddSingleton<NotionHttpClientFactory>();
+        
+        // Сервисы для работы с Notion
+        services.AddScoped<PersonalNotionService>();
+        services.AddScoped<NotionSettingsService>();
+        services.AddScoped<NotionSchemaCacheService>();
+        
+        // Сервис фоновых задач
+        services.AddSingleton<BackgroundTaskService>();
 
         bool useNotion = bool.TryParse(config["UseNotion"], out var flag) && flag;
 
         if (useNotion)
         {
-            services.AddHttpClient<NotionService>((provider, client) =>
-            {
-                string? notionToken = config["Notion:ApiToken"];
-                if (string.IsNullOrWhiteSpace(notionToken))
-                    throw new Exception("В конфигурации не указан Notion API Token.");
-
-                client.BaseAddress = new Uri("https://api.notion.com/v1/");
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {notionToken}");
-                client.DefaultRequestHeaders.Add("Notion-Version", "2022-06-28");
-            });
+            // Глобальное хранилище Notion для общих справочников
             services.AddScoped<ITradeStorage, NotionTradeStorage>();
         }
         else
@@ -79,7 +99,7 @@ var host = Host.CreateDefaultBuilder(args)
             var cache = provider.GetRequiredService<IMemoryCache>();
             string botId = botToken.Contains(':') ? botToken.Split(':')[0] : "bot";
             string connectionString = connection;
-            return new UpdateHandler(tradeStorage, pnlService, uiManager, logger, cache, connectionString, botId);
+            return new UpdateHandler(tradeStorage, pnlService, uiManager, logger, cache, connectionString, botId, provider);
         });
 
         services.AddHostedService<BotService>();

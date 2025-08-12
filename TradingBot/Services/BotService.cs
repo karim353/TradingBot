@@ -30,7 +30,7 @@ namespace TradingBot.Services
             // Регистрация команд
             await _botClient.SetMyCommands(new[]
             {
-                new BotCommand { Command = "start", Description = "🚀 Запуск бота" },
+                new BotCommand { Command = "start", Description = "🚀 Запуск бота и обучение" },
                 new BotCommand { Command = "menu", Description = "📋 Главное меню" }
             }, cancellationToken: stoppingToken);
 
