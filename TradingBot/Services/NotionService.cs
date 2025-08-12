@@ -237,9 +237,9 @@ namespace TradingBot.Services
             {
                 properties["Result"] = new { select = new { name = trade.Result } };
             }
-            if (trade.RR.HasValue)
+            if (!string.IsNullOrWhiteSpace(trade.RR))
             {
-                properties["RR"] = new { number = trade.RR.Value };
+                properties["RR"] = new { rich_text = new[] { new { text = new { content = trade.RR } } } };
             }
             if (trade.Risk.HasValue)
             {
@@ -310,9 +310,10 @@ namespace TradingBot.Services
             {
                 trade.Result = resVal.GetProperty("name").GetString();
             }
-            if (props.TryGetProperty("RR", out var rrElem) && rrElem.TryGetProperty("number", out var rrNum) && rrNum.ValueKind != JsonValueKind.Null)
+            if (props.TryGetProperty("RR", out var rrElem) && rrElem.TryGetProperty("rich_text", out var rrText))
             {
-                trade.RR = rrNum.GetDecimal();
+                trade.RR = string.Concat(rrText.EnumerateArray()
+                                         .Select(r => r.GetProperty("text").GetProperty("content").GetString()));
             }
             if (props.TryGetProperty("Risk", out var riskElem) && riskElem.TryGetProperty("number", out var riskNum) && riskNum.ValueKind != JsonValueKind.Null)
             {

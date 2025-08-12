@@ -21,6 +21,11 @@ namespace TradingBot.Models
         public List<string> RecentContexts { get; set; }
         public List<string> RecentEmotions { get; set; }
 
+        // Notion personal DB settings (used by PersonalNotionService)
+        public bool NotionEnabled { get; set; }
+        public string? NotionDatabaseId { get; set; }
+        public string? NotionIntegrationToken { get; set; }
+
         public UserSettings()
         {
             Language = "ru";
@@ -36,6 +41,9 @@ namespace TradingBot.Models
             RecentSetups = new List<string>();
             RecentContexts = new List<string>();
             RecentEmotions = new List<string>();
+            NotionEnabled = false;
+            NotionDatabaseId = null;
+            NotionIntegrationToken = null;
         }
     }
 }

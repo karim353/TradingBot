@@ -43,7 +43,7 @@ namespace TradingBot.Models
         public string? Result { get; set; }
 
         /// <summary>R:R</summary>
-        public decimal? RR { get; set; }
+        public string? RR { get; set; }
 
         /// <summary>Риск (%)</summary>
         public decimal? Risk { get; set; }

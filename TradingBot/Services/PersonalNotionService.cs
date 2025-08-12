@@ -1,0 +1,230 @@
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using TradingBot.Models;
+
+namespace TradingBot.Services
+{
+    public class PersonalNotionService
+    {
+        private readonly HttpClient _httpClient;
+        private readonly ILogger<PersonalNotionService> _logger;
+        private readonly IConfiguration _configuration;
+
+        public PersonalNotionService(HttpClient httpClient, ILogger<PersonalNotionService> logger, IConfiguration configuration)
+        {
+            _httpClient = httpClient;
+            _logger = logger;
+            _configuration = configuration;
+        }
+
+        /// <summary>
+        /// Получает готовые ответы из персональной базы данных пользователя
+        /// </summary>
+        public async Task<Dictionary<string, List<string>>> GetPersonalOptionsAsync(UserSettings userSettings)
+        {
+            if (!userSettings.NotionEnabled || string.IsNullOrEmpty(userSettings.NotionDatabaseId))
+            {
+                return new Dictionary<string, List<string>>();
+            }
+
+            // Логируем источник настроек для отладки
+            var isDeveloperSettings = userSettings.NotionDatabaseId == _configuration["Notion:DatabaseId"];
+            if (isDeveloperSettings)
+            {
+                _logger.LogInformation("Используются настройки разработчика из appsettings.json");
+            }
+
+            try
+            {
+                // Настраиваем HTTP клиент для конкретного пользователя
+                _httpClient.DefaultRequestHeaders.Clear();
+                _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {userSettings.NotionIntegrationToken}");
+                _httpClient.DefaultRequestHeaders.Add("Notion-Version", "2022-06-28");
+
+                // Получаем схему базы данных
+                var response = await _httpClient.GetAsync($"https://api.notion.com/v1/databases/{userSettings.NotionDatabaseId}");
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Не удалось получить схему базы данных Notion для пользователя. Status: {Status}", response.StatusCode);
+                    return new Dictionary<string, List<string>>();
+                }
+
+                string json = await response.Content.ReadAsStringAsync();
+                using JsonDocument doc = JsonDocument.Parse(json);
+                
+                var optionsByField = new Dictionary<string, List<string>>();
+                JsonElement props = doc.RootElement.GetProperty("properties");
+                
+                foreach (var prop in props.EnumerateObject())
+                {
+                    if (prop.Value.GetProperty("type").GetString() is string type && 
+                        (type == "select" || type == "multi_select"))
+                    {
+                        var options = new List<string>();
+                        foreach (var opt in prop.Value.GetProperty(type).GetProperty("options").EnumerateArray())
+                        {
+                            string? name = opt.GetProperty("name").GetString();
+                            if (!string.IsNullOrWhiteSpace(name))
+                                options.Add(name);
+                        }
+                        optionsByField[prop.Name] = options;
+                    }
+                }
+
+                _logger.LogInformation("Получено {Count} полей с опциями из персональной БД Notion пользователя", optionsByField.Count);
+                return optionsByField;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка при получении опций из персональной БД Notion");
+                return new Dictionary<string, List<string>>();
+            }
+        }
+
+        /// <summary>
+        /// Получает опции для конкретного поля из персональной БД
+        /// </summary>
+        public async Task<List<string>> GetPersonalOptionsAsync(UserSettings userSettings, string fieldName)
+        {
+            var allOptions = await GetPersonalOptionsAsync(userSettings);
+            return allOptions.TryGetValue(fieldName, out var options) ? options : new List<string>();
+        }
+
+        /// <summary>
+        /// Проверяет доступность персональной базы данных Notion
+        /// </summary>
+        public async Task<bool> TestNotionConnectionAsync(UserSettings userSettings)
+        {
+            if (!userSettings.NotionEnabled || string.IsNullOrEmpty(userSettings.NotionDatabaseId))
+                return false;
+
+            try
+            {
+                _httpClient.DefaultRequestHeaders.Clear();
+                _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {userSettings.NotionIntegrationToken}");
+                _httpClient.DefaultRequestHeaders.Add("Notion-Version", "2022-06-28");
+
+                var response = await _httpClient.GetAsync($"https://api.notion.com/v1/databases/{userSettings.NotionDatabaseId}");
+                return response.IsSuccessStatusCode;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка при проверке подключения к Notion");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Извлекает Database ID из URL Notion
+        /// </summary>
+        public string? ExtractDatabaseIdFromUrl(string notionUrl)
+        {
+            try
+            {
+                // Пример URL: https://emphasized-aardvark-dab.notion.site/Defaust-Trader-13158ba9850f8067bfc5d349521b0fd8
+                var uri = new Uri(notionUrl);
+                var pathSegments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                
+                if (pathSegments.Length >= 2)
+                {
+                    // Последний сегмент содержит Database ID
+                    return pathSegments[^1];
+                }
+                
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка при извлечении Database ID из URL: {Url}", notionUrl);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Получает готовые ответы для конкретного поля с fallback на стандартные
+        /// </summary>
+        public async Task<List<string>> GetOptionsWithFallbackAsync(
+            UserSettings userSettings,
+            string fieldName,
+            List<string> defaultOptions,
+            string userId)
+        {
+            if (userSettings.NotionEnabled && !string.IsNullOrEmpty(userSettings.NotionDatabaseId))
+            {
+                var personalOptions = await GetPersonalOptionsAsync(userSettings, fieldName);
+                if (personalOptions.Any())
+                {
+                    // Объединяем персональные опции с дефолтными, убирая дубликаты
+                    var combined = new List<string>(personalOptions);
+                    foreach (var option in defaultOptions)
+                    {
+                        if (!combined.Contains(option, StringComparer.OrdinalIgnoreCase))
+                        {
+                            combined.Add(option);
+                        }
+                    }
+                    return combined;
+                }
+            }
+            // Fallback на настройки разработчика только для указанного разработчика
+            var developerUserId = _configuration["Developer:UserId"];
+            if (!string.IsNullOrEmpty(developerUserId) && string.Equals(developerUserId, userId, StringComparison.Ordinal))
+            {
+                var developerOptions = await GetDeveloperOptionsAsync(fieldName);
+                if (developerOptions.Any())
+                {
+                    var combined = new List<string>(developerOptions);
+                    foreach (var option in defaultOptions)
+                    {
+                        if (!combined.Contains(option, StringComparer.OrdinalIgnoreCase))
+                        {
+                            combined.Add(option);
+                        }
+                    }
+                    return combined;
+                }
+            }
+            
+            return defaultOptions;
+        }
+
+        /// <summary>
+        /// Получает опции из настроек разработчика (appsettings.json)
+        /// </summary>
+        private async Task<List<string>> GetDeveloperOptionsAsync(string fieldName)
+        {
+            try
+            {
+                var notionToken = _configuration["Notion:ApiToken"];
+                var notionDbId = _configuration["Notion:DatabaseId"];
+                
+                if (string.IsNullOrEmpty(notionToken) || string.IsNullOrEmpty(notionDbId))
+                {
+                    return new List<string>();
+                }
+
+                // Создаем временные настройки разработчика
+                var developerSettings = new UserSettings
+                {
+                    NotionEnabled = true,
+                    NotionDatabaseId = notionDbId,
+                    NotionIntegrationToken = notionToken
+                };
+
+                var options = await GetPersonalOptionsAsync(developerSettings, fieldName);
+                _logger.LogInformation("Получено {Count} опций из настроек разработчика для поля {Field}", options.Count, fieldName);
+                return options;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Ошибка при получении опций разработчика для поля {Field}", fieldName);
+                return new List<string>();
+            }
+        }
+    }
+}

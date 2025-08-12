@@ -17,7 +17,7 @@ namespace TradingBot.Services
             
             // Убираем пробелы, проценты, двоеточия, и другие проблемные символы
             var result = input
-                .Replace(" ", "")
+                .Replace(" ", "_")
                 .Replace("%", "PCT")
                 .Replace(":", "_")
                 .Replace("/", "_")
@@ -178,7 +178,17 @@ namespace TradingBot.Services
         private List<string> _directionOptions = new();
 
         // Популярные тикеры можно задать статически (для автоподстановки на шаге 1)
-        public static readonly List<string> PopularTickers = new() { "BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "ADA/USDT" };
+        public static readonly List<string> PopularTickers = new() { "BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "EUR/USD", "XAU/USD" };
+
+        // Значения по умолчанию, если Notion/SQLite не предоставили готовые ответы
+        private static readonly List<string> DefaultAccounts = new() { "🏦 BingX", "🏦 Binance", "🏦 MEXC", "🏦 Bybit", "🧪 Demo" };
+        private static readonly List<string> DefaultSessions = new() { "ASIA", "LONDON", "NEW YORK", "FRANKFURT" };
+        private static readonly List<string> DefaultPositionTypes = new() { "⚡ Scalp", "⏱ Intraday", "📅 Swing", "🏋️ Position" };
+        private static readonly List<string> DefaultDirections = new() { "Long", "Short" };
+        private static readonly List<string> DefaultContexts = new() { "📈 Uptrend", "📉 Downtrend", "➖ Range" };
+        private static readonly List<string> DefaultSetups = new() { "↗️ Continuation (CONT)", "📈 Breakout", "🔄 Reversal (REVR)", "🔁 Double Top/Bottom", "👤 Head & Shoulders" };
+        private static readonly List<string> DefaultResults = new() { "TP", "SL", "BE" };
+        private static readonly List<string> DefaultEmotions = new() { "😌 Calm", "🎯 Focused", "😨 Fear", "😵‍💫 FOMO" };
 
         public string GetText(string key, string language, params object[] args)
         {
@@ -251,23 +261,25 @@ namespace TradingBot.Services
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetTradeInputScreen(Trade trade, int step, UserSettings settings, string tradeId, Trade? lastTrade = null)
         {
-            string preview = _resources[settings.Language]["trade_preview"];
-            string formattedPreview = string.Format(preview,
-                trade.Ticker ?? "-",
-                trade.Account ?? "-",
-                trade.Session ?? "-",
-                trade.Position ?? "-",
-                trade.Direction ?? "-",
-                (trade.Context != null && trade.Context.Any()) ? string.Join(", ", trade.Context) : "-",
-                (trade.Setup != null && trade.Setup.Any()) ? string.Join(", ", trade.Setup) : "-",
-                trade.Result ?? "-",
-                trade.RR?.ToString("0.##") ?? "-",
-                trade.Risk?.ToString("0.##") ?? "-",
-                trade.PnL.ToString("0.##"),
-                (trade.Emotions != null && trade.Emotions.Any()) ? string.Join(", ", trade.Emotions) : "-",
-                trade.EntryDetails ?? "-",
-                trade.Note ?? "-"
-            );
+            // Переписанный превью с эмодзи в значениях
+            var ctx = (trade.Context != null && trade.Context.Any()) ? string.Join(", ", trade.Context) : "-";
+            var setup = (trade.Setup != null && trade.Setup.Any()) ? string.Join(", ", trade.Setup) : "-";
+            var emos = (trade.Emotions != null && trade.Emotions.Any()) ? string.Join(", ", trade.Emotions) : "-";
+            string formattedPreview =
+                "📌 Тикер: " + (string.IsNullOrWhiteSpace(trade.Ticker) ? "-" : trade.Ticker) + "\n" +
+                "🧾 Аккаунт: " + (string.IsNullOrWhiteSpace(trade.Account) ? "-" : trade.Account) + "\n" +
+                "🕒 Сессия: " + (string.IsNullOrWhiteSpace(trade.Session) ? "-" : trade.Session) + "\n" +
+                "📐 Позиция: " + (string.IsNullOrWhiteSpace(trade.Position) ? "-" : trade.Position) + "\n" +
+                "↕️ Направление: " + (string.IsNullOrWhiteSpace(trade.Direction) ? "-" : trade.Direction) + "\n" +
+                "🧩 Контекст: " + ctx + "\n" +
+                "🧠 Сетап: " + setup + "\n" +
+                "🎯 Результат: " + (string.IsNullOrWhiteSpace(trade.Result) ? "-" : trade.Result) + "\n" +
+                "⚖️ R:R = " + (string.IsNullOrWhiteSpace(trade.RR) ? "-" : trade.RR) + "\n" +
+                "⚠️ Риск: " + (trade.Risk?.ToString("0.##") ?? "-") + "%\n" +
+                "📈 Прибыль: " + trade.PnL.ToString("0.##") + "%\n" +
+                "😃 Эмоции: " + emos + "\n" +
+                "🔍 Детали входа: " + (string.IsNullOrWhiteSpace(trade.EntryDetails) ? "-" : trade.EntryDetails) + "\n" +
+                "📝 Заметка: " + (string.IsNullOrWhiteSpace(trade.Note) ? "-" : trade.Note);
 
             string prompt = _resources[settings.Language][$"step_{step}"];
             var buttons = new List<InlineKeyboardButton[]>();
@@ -277,16 +289,19 @@ namespace TradingBot.Services
                 case 1: // Тикер
                     var fav = settings.FavoriteTickers ?? new List<string>();
                     var recent = settings.RecentTickers ?? new List<string>();
-                    var tickers = fav.Concat(recent).Concat(PopularTickers).Distinct().Take(5).ToList();
+                    var tickers = fav.Concat(recent).Concat(PopularTickers).Distinct().Take(6).ToList();
                     foreach (var t in tickers)
                         buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(t, $"set_ticker_{SanitizeCallbackData(t)}_trade_{tradeId}") });
                     buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["other"], $"input_ticker_trade_{tradeId}") });
                     if (!string.IsNullOrEmpty(lastTrade?.Ticker))
                         buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["prefill_last"], $"set_ticker_{SanitizeCallbackData(lastTrade!.Ticker)}_trade_{tradeId}") });
+                    // Добавляем кнопку Пропустить на первом шаге
+                    buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["skip"], $"skip_trade_{tradeId}_step_{step}") });
                     break;
 
                 case 2: // Аккаунт
-                    foreach (var option in _accountOptions)
+                    var accounts = _accountOptions.Any() ? _accountOptions : DefaultAccounts;
+                    foreach (var option in accounts)
                         buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(option, $"set_account_{SanitizeCallbackData(option)}_trade_{tradeId}") });
                     //buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["skip"], $"skip_trade_{tradeId}_step_{step}") });
                     buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["input_manually"], $"input_account_trade_{tradeId}") });
@@ -298,7 +313,7 @@ namespace TradingBot.Services
                     buttons.Add(new[]
                     {
                         InlineKeyboardButton.WithCallbackData("🇯🇵 ASIA", $"set_session_ASIA_trade_{tradeId}"),
-                        InlineKeyboardButton.WithCallbackData("🇩�� FRANKFURT", $"set_session_FRANKFURT_trade_{tradeId}")
+                        InlineKeyboardButton.WithCallbackData("🇩🇪 FRANKFURT", $"set_session_FRANKFURT_trade_{tradeId}")
                     });
                     buttons.Add(new[]
                     {
@@ -307,7 +322,8 @@ namespace TradingBot.Services
                     });
 
                     // Кастомные сессии из Notion/SQLite — тоже по две в ряд
-                    var customSessions = _sessionOptions.Where(s => !defaultSessions.Contains(s)).ToList();
+                    var sessionBase = _sessionOptions.Any() ? _sessionOptions : DefaultSessions;
+                    var customSessions = sessionBase.Where(s => !defaultSessions.Contains(s)).ToList();
                     for (int i = 0; i < customSessions.Count; i += 2)
                     {
                         if (i + 1 < customSessions.Count)
@@ -323,27 +339,18 @@ namespace TradingBot.Services
                     buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["input_manually"], $"input_session_trade_{tradeId}") });
                     break;
 
-                case 4: // Позиция - добавляем кнопку "Пропустить"
-                    var defaultPositions = new[] { "Long", "Short" };
-                    // Long/Short — в один ряд
-                    buttons.Add(new[]
+                case 4: // Позиция (тип сделки)
+                    var positionTypes = _positionOptions.Any() ? _positionOptions : DefaultPositionTypes;
+                    for (int i = 0; i < positionTypes.Count; i += 2)
                     {
-                        InlineKeyboardButton.WithCallbackData("🟢 LONG", $"set_position_Long_trade_{tradeId}"),
-                        InlineKeyboardButton.WithCallbackData("🔴 SHORT", $"set_position_Short_trade_{tradeId}")
-                    });
-
-                    // Остальные опции — по две в ряд
-                    var extraPositions = _positionOptions.Where(p => !defaultPositions.Contains(p)).ToList();
-                    for (int i = 0; i < extraPositions.Count; i += 2)
-                    {
-                        if (i + 1 < extraPositions.Count)
+                        if (i + 1 < positionTypes.Count)
                             buttons.Add(new[]
                             {
-                                                            InlineKeyboardButton.WithCallbackData(extraPositions[i], $"set_position_{SanitizeCallbackData(extraPositions[i])}_trade_{tradeId}"),
-                            InlineKeyboardButton.WithCallbackData(extraPositions[i + 1], $"set_position_{SanitizeCallbackData(extraPositions[i + 1])}_trade_{tradeId}")
+                                InlineKeyboardButton.WithCallbackData(positionTypes[i], $"set_position_{SanitizeCallbackData(positionTypes[i])}_trade_{tradeId}"),
+                                InlineKeyboardButton.WithCallbackData(positionTypes[i + 1], $"set_position_{SanitizeCallbackData(positionTypes[i + 1])}_trade_{tradeId}")
                             });
                         else
-                            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(extraPositions[i], $"set_position_{SanitizeCallbackData(extraPositions[i])}_trade_{tradeId}") });
+                            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(positionTypes[i], $"set_position_{SanitizeCallbackData(positionTypes[i])}_trade_{tradeId}") });
                     }
                     break;
 
@@ -363,7 +370,8 @@ namespace TradingBot.Services
                     });
 
                     // Остальные опции — по две в ряд
-                    var extraDirections = _directionOptions.Where(d => !defaultDirections.Contains(d)).ToList();
+                    var baseDirections = _directionOptions.Any() ? _directionOptions : DefaultDirections;
+                    var extraDirections = baseDirections.Where(d => !defaultDirections.Contains(d)).ToList();
                     for (int i = 0; i < extraDirections.Count; i += 2)
                     {
                         if (i + 1 < extraDirections.Count)
@@ -378,14 +386,16 @@ namespace TradingBot.Services
                     break;
 
                 case 6: // Контекст
-                    foreach (var option in _contextOptions)
+                    var contexts = _contextOptions.Any() ? _contextOptions : DefaultContexts;
+                    foreach (var option in contexts)
                         buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(option, $"set_context_{SanitizeCallbackData(option)}_trade_{tradeId}") });
                     //buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["skip"], $"skip_trade_{tradeId}_step_{step}") });
                     buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["input_manually"], $"input_context_trade_{tradeId}") });
                     break;
 
                 case 7: // Сетап
-                    foreach (var option in _setupOptions)
+                    var setups = _setupOptions.Any() ? _setupOptions : DefaultSetups;
+                    foreach (var option in setups)
                         buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(option, $"set_setup_{SanitizeCallbackData(option)}_trade_{tradeId}") });
                    // buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["skip"], $"skip_trade_{tradeId}_step_{step}") });
                     buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["input_manually"], $"input_setup_trade_{tradeId}") });
@@ -401,9 +411,10 @@ namespace TradingBot.Services
                         buttons.Add(new[]
                         {
                             InlineKeyboardButton.WithCallbackData("0.5%", $"set_risk_0_5_trade_{tradeId}"),
-                            InlineKeyboardButton.WithCallbackData("1%", $"set_risk_1_0_trade_{tradeId}"),
-                            InlineKeyboardButton.WithCallbackData("2%", $"set_risk_2_0_trade_{tradeId}"),
-                            InlineKeyboardButton.WithCallbackData("3%", $"set_risk_3_0_trade_{tradeId}")
+                            InlineKeyboardButton.WithCallbackData("1%",   $"set_risk_1_0_trade_{tradeId}"),
+                            InlineKeyboardButton.WithCallbackData("1.5%", $"set_risk_1_5_trade_{tradeId}"),
+                            InlineKeyboardButton.WithCallbackData("2%",   $"set_risk_2_0_trade_{tradeId}"),
+                            InlineKeyboardButton.WithCallbackData("3%",   $"set_risk_3_0_trade_{tradeId}")
                         });
                     }
                     if (step == 9)
@@ -421,22 +432,22 @@ namespace TradingBot.Services
                     break;
 
                 case 10: // Результат
-                    // Быстрые кнопки в один ряд: TP / BE / SL / SK
+                    // Быстрые кнопки: TP / SL / BE
                     buttons.Add(new[]
                     {
                         InlineKeyboardButton.WithCallbackData("🟢 TP", $"set_result_TP_trade_{tradeId}"),
-                        InlineKeyboardButton.WithCallbackData("🟠 BE", $"set_result_BE_trade_{tradeId}"),
                         InlineKeyboardButton.WithCallbackData("🔴 SL", $"set_result_SL_trade_{tradeId}"),
-                        InlineKeyboardButton.WithCallbackData("🟣 SK", $"set_result_SK_trade_{tradeId}")
+                        InlineKeyboardButton.WithCallbackData("🟠 BE", $"set_result_BE_trade_{tradeId}")
                     });
-                    foreach (var option in _resultOptions)
+                    var results = _resultOptions.Any() ? _resultOptions : DefaultResults;
+                    foreach (var option in results)
                         buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(option, $"set_result_{SanitizeCallbackData(option)}_trade_{tradeId}") });
                     //buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["skip"], $"skip_trade_{tradeId}_step_{step}") });
                     buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["input_manually"], $"input_result_trade_{tradeId}") });
                     break;
 
                 case 12: // Эмоции
-                    var emo = _emotionOptions.Any() ? _emotionOptions : new List<string> { "😎 Уверенность", "😨 Страх", "🤑 Жадность", "🤔 Сомнения" };
+                    var emo = _emotionOptions.Any() ? _emotionOptions : DefaultEmotions;
                     // по две в ряд
                     for (int i = 0; i < emo.Count; i += 2)
                     {
@@ -454,7 +465,13 @@ namespace TradingBot.Services
                     break;
 
                 case 13: // Детали входа
-                   // buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["skip"], $"skip_trade_{tradeId}_step_{step}") });
+                    // Быстрые варианты типа входа
+                    buttons.Add(new[]
+                    {
+                        InlineKeyboardButton.WithCallbackData("🛒 Market", $"set_entry_market_trade_{tradeId}"),
+                        InlineKeyboardButton.WithCallbackData("🏷 Limit",  $"set_entry_limit_trade_{tradeId}"),
+                        InlineKeyboardButton.WithCallbackData("⛔ Stop",    $"set_entry_stop_trade_{tradeId}")
+                    });
                     buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(_resources[settings.Language]["input_manually"], $"input_entry_trade_{tradeId}") });
                     break;
 
@@ -481,14 +498,21 @@ namespace TradingBot.Services
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetTradeConfirmationScreen(Trade trade, string tradeId, UserSettings settings)
         {
-            string text = string.Format(_resources[settings.Language]["trade_preview"],
-                trade.Ticker ?? "-", trade.Account ?? "-", trade.Session ?? "-", trade.Position ?? "-",
-                trade.Direction ?? "-", (trade.Context != null && trade.Context.Any()) ? string.Join(", ", trade.Context) : "-",
-                (trade.Setup != null && trade.Setup.Any()) ? string.Join(", ", trade.Setup) : "-",
-                trade.Result ?? "-", trade.RR?.ToString("0.##") ?? "-", trade.Risk?.ToString("0.##") ?? "-",
-                trade.PnL.ToString("0.##"),
-                (trade.Emotions != null && trade.Emotions.Any()) ? string.Join(", ", trade.Emotions) : "-",
-                trade.EntryDetails ?? "-", trade.Note ?? "-");
+            string text =
+                "📌 Тикер: " + (string.IsNullOrWhiteSpace(trade.Ticker) ? "-" : trade.Ticker) + "\n" +
+                "🧾 Аккаунт: " + (string.IsNullOrWhiteSpace(trade.Account) ? "-" : trade.Account) + "\n" +
+                "🕒 Сессия: " + (string.IsNullOrWhiteSpace(trade.Session) ? "-" : trade.Session) + "\n" +
+                "📐 Позиция: " + (string.IsNullOrWhiteSpace(trade.Position) ? "-" : trade.Position) + "\n" +
+                "↕️ Направление: " + (string.IsNullOrWhiteSpace(trade.Direction) ? "-" : trade.Direction) + "\n" +
+                "🧩 Контекст: " + ((trade.Context != null && trade.Context.Any()) ? string.Join(", ", trade.Context) : "-") + "\n" +
+                "🧠 Сетап: " + ((trade.Setup != null && trade.Setup.Any()) ? string.Join(", ", trade.Setup) : "-") + "\n" +
+                "🎯 Результат: " + (string.IsNullOrWhiteSpace(trade.Result) ? "-" : trade.Result) + "\n" +
+                "⚖️ R:R = " + (string.IsNullOrWhiteSpace(trade.RR) ? "-" : trade.RR) + "\n" +
+                "⚠️ Риск: " + (trade.Risk?.ToString("0.##") ?? "-") + "%\n" +
+                "📈 Прибыль: " + trade.PnL.ToString("0.##") + "%\n" +
+                "😃 Эмоции: " + ((trade.Emotions != null && trade.Emotions.Any()) ? string.Join(", ", trade.Emotions) : "-") + "\n" +
+                "🔍 Детали входа: " + (string.IsNullOrWhiteSpace(trade.EntryDetails) ? "-" : trade.EntryDetails) + "\n" +
+                "📝 Заметка: " + (string.IsNullOrWhiteSpace(trade.Note) ? "-" : trade.Note);
 
             var keyboard = new InlineKeyboardMarkup(new[]
             {
@@ -502,14 +526,21 @@ namespace TradingBot.Services
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetEditFieldMenu(Trade trade, string tradeId, UserSettings settings)
         {
-            string preview = string.Format(_resources[settings.Language]["trade_preview"],
-                trade.Ticker ?? "-", trade.Account ?? "-", trade.Session ?? "-", trade.Position ?? "-",
-                trade.Direction ?? "-", (trade.Context != null && trade.Context.Any()) ? string.Join(", ", trade.Context) : "-",
-                (trade.Setup != null && trade.Setup.Any()) ? string.Join(", ", trade.Setup) : "-",
-                trade.Result ?? "-", trade.RR?.ToString("0.##") ?? "-", trade.Risk?.ToString("0.##") ?? "-",
-                trade.PnL.ToString("0.##"),
-                (trade.Emotions != null && trade.Emotions.Any()) ? string.Join(", ", trade.Emotions) : "-",
-                trade.EntryDetails ?? "-", trade.Note ?? "-");
+            string preview =
+                "📌 Тикер: " + (string.IsNullOrWhiteSpace(trade.Ticker) ? "-" : trade.Ticker) + "\n" +
+                "🧾 Аккаунт: " + (string.IsNullOrWhiteSpace(trade.Account) ? "-" : trade.Account) + "\n" +
+                "🕒 Сессия: " + (string.IsNullOrWhiteSpace(trade.Session) ? "-" : trade.Session) + "\n" +
+                "📐 Позиция: " + (string.IsNullOrWhiteSpace(trade.Position) ? "-" : trade.Position) + "\n" +
+                "↕️ Направление: " + (string.IsNullOrWhiteSpace(trade.Direction) ? "-" : trade.Direction) + "\n" +
+                "🧩 Контекст: " + ((trade.Context != null && trade.Context.Any()) ? string.Join(", ", trade.Context) : "-") + "\n" +
+                "🧠 Сетап: " + ((trade.Setup != null && trade.Setup.Any()) ? string.Join(", ", trade.Setup) : "-") + "\n" +
+                "🎯 Результат: " + (string.IsNullOrWhiteSpace(trade.Result) ? "-" : trade.Result) + "\n" +
+                "⚖️ R:R = " + (string.IsNullOrWhiteSpace(trade.RR) ? "-" : trade.RR) + "\n" +
+                "⚠️ Риск: " + (trade.Risk?.ToString("0.##") ?? "-") + "%\n" +
+                "📈 Прибыль: " + trade.PnL.ToString("0.##") + "%\n" +
+                "😃 Эмоции: " + ((trade.Emotions != null && trade.Emotions.Any()) ? string.Join(", ", trade.Emotions) : "-") + "\n" +
+                "🔍 Детали входа: " + (string.IsNullOrWhiteSpace(trade.EntryDetails) ? "-" : trade.EntryDetails) + "\n" +
+                "📝 Заметка: " + (string.IsNullOrWhiteSpace(trade.Note) ? "-" : trade.Note);
 
             // Готовим плоский список кнопок с эмодзи
             var flat = new List<InlineKeyboardButton>
@@ -760,7 +791,7 @@ namespace TradingBot.Services
                 $"📌 Тикер: {trade.Ticker ?? "-"}\n" +
                 $"🧾 Аккаунт: {trade.Account ?? "-"} | 🕒 Сессия: {trade.Session ?? "-"}\n" +
                 $"📐 Позиция: {trade.Position ?? "-"} | ↕️ Направление: {trade.Direction ?? "-"}\n" +
-                $"🎯 Результат: {trade.Result ?? "-"} | R:R: {trade.RR?.ToString("0.##") ?? "-"} | Риск: {trade.Risk?.ToString("0.##") ?? "-"}%\n" +
+                $"🎯 Результат: {trade.Result ?? "-"} | R:R: {trade.RR ?? "-"} | Риск: {trade.Risk?.ToString("0.##") ?? "-"}%\n" +
                 $"📈 PnL: {trade.PnL:0.##}%\n" +
                 $"🧩 Контекст: {(trade.Context != null && trade.Context.Any() ? string.Join(", ", trade.Context) : "-" )}\n" +
                 $"🧠 Сетап: {(trade.Setup != null && trade.Setup.Any() ? string.Join(", ", trade.Setup) : "-" )}\n" +

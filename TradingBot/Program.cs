@@ -10,6 +10,9 @@ using Microsoft.Extensions.Caching.Memory;
 using Telegram.Bot;
 using TradingBot.Services;
 using TradingBot.Models;
+using Microsoft.Data.Sqlite;
+using System.Collections.Generic;
+
 
 var host = Host.CreateDefaultBuilder(args)
     .ConfigureAppConfiguration((context, config) =>
@@ -42,6 +45,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<PnLService>();
         services.AddSingleton<UIManager>();
         services.AddMemoryCache();
+        services.AddScoped<TradeRepository>();
 
         bool useNotion = bool.TryParse(config["UseNotion"], out var flag) && flag;
 
@@ -118,9 +122,91 @@ using (var scope = host.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Ошибка при миграции базы данных. Рекомендую создать миграцию: dotnet ef migrations add UpdateForNotionNewSchema");
-        // Не бросаем дальше, чтобы бот мог стартовать в dev-сценарии.
+        logger.LogWarning(ex, "Ошибка при миграции базы данных. Пытаемся синхронизировать схему вручную.");
+        
+        // Попробуем синхронизировать схему вручную
+        try
+        {
+            var db = sp.GetRequiredService<TradeContext>();
+            await EnsureDatabaseSchemaAsync(db, logger);
+            logger.LogInformation("Схема базы данных синхронизирована вручную.");
+        }
+        catch (Exception schemaEx)
+        {
+            logger.LogError(schemaEx, "Не удалось синхронизировать схему базы данных. Бот может работать некорректно.");
+        }
     }
+
+
 }
 
 await host.RunAsync();
+
+static async Task EnsureDatabaseSchemaAsync(TradeContext ctx, ILogger logger)
+{
+    var requiredColumns = new Dictionary<string, string>
+    {
+        {"Account", "TEXT"},
+        {"Session", "TEXT"},
+        {"Position", "TEXT"},
+        {"Direction", "TEXT"},
+        {"Context", "TEXT"},
+        {"Setup", "TEXT"},
+        {"Emotions", "TEXT"},
+        {"EntryDetails", "TEXT"},
+        {"Note", "TEXT"},
+        {"Result", "TEXT"},
+        {"RR", "TEXT"},
+        {"Risk", "REAL"},
+        {"PnL", "REAL"},
+        {"NotionPageId", "TEXT"}
+    };
+
+    await using var conn = (SqliteConnection)ctx.Database.GetDbConnection();
+    if (conn.State != System.Data.ConnectionState.Open)
+        await conn.OpenAsync();
+
+    // Получаем список существующих колонок
+    var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    await using (var cmd = conn.CreateCommand())
+    {
+        cmd.CommandText = "PRAGMA table_info('Trades')";
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var name = reader.GetString(1);
+            existingColumns.Add(name);
+        }
+    }
+
+    // Добавляем недостающие колонки
+    foreach (var column in requiredColumns)
+    {
+        if (existingColumns.Contains(column.Key))
+        {
+            logger.LogDebug($"Колонка {column.Key} уже существует, пропускаем.");
+            continue;
+        }
+
+        try
+        {
+            var alterSql = $"ALTER TABLE \"Trades\" ADD COLUMN \"{column.Key}\" {column.Value}";
+            if (column.Key == "PnL")
+                alterSql += " NOT NULL DEFAULT 0.0";
+            else
+                alterSql += " NULL";
+
+            await using var alterCmd = conn.CreateCommand();
+            alterCmd.CommandText = alterSql;
+            await alterCmd.ExecuteNonQueryAsync();
+            logger.LogInformation($"Добавлена колонка {column.Key} типа {column.Value}");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, $"Не удалось добавить колонку {column.Key}");
+        }
+    }
+}
+
+
+

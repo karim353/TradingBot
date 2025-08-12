@@ -996,6 +996,13 @@ namespace TradingBot.Services
                             // ожидаем: set_<field>_<value>_trade_<id>
                             string field = parts.Length > 1 ? parts[1].ToLowerInvariant() : string.Empty;
                             string value = parts.Length > 2 ? parts[2] : string.Empty;
+                            
+                            // Special handling for R:R field which has extra underscores
+                            if (field == "rr" && parts.Length > 4)
+                            {
+                                // For R:R, reconstruct the value from parts[2] and parts[3]
+                                value = $"{parts[2]}_{parts[3]}";
+                            }
 
                             switch (field)
                             {
@@ -1089,20 +1096,32 @@ namespace TradingBot.Services
                                     state.Step++;
                                     break;
                                 }
+                                case "entry":
+                                {
+                                    // Быстрые варианты: market/limit/stop
+                                    var lower = value.ToLowerInvariant();
+                                    state.Trade.EntryDetails = lower switch
+                                    {
+                                        "market" => "Market",
+                                        "limit"  => "Limit",
+                                        "stop"   => "Stop",
+                                        _ => state.Trade.EntryDetails
+                                    };
+                                    state.Step++;
+                                    break;
+                                }
                                 case "rr":
                                 {
-                                    // 1_2 -> 2.0 (1:2), 1_3 -> 3.0 и т.д.
-                                    decimal? rrVal = null;
+                                    // 1_2 -> "1:2", 1_3 -> "1:3" и т.д.
                                     var partsRR = value.Split('_');
-                                    if (partsRR.Length == 2 && decimal.TryParse(partsRR[1].Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var denom))
+                                    if (partsRR.Length == 2)
                                     {
-                                        rrVal = denom;
+                                        state.Trade.RR = $"{partsRR[0]}:{partsRR[1]}";
                                     }
                                     else
                                     {
-                                        rrVal = TryParseNullableDecimal(value);
+                                        state.Trade.RR = value;
                                     }
-                                    state.Trade.RR = rrVal;
                                     state.Step++;
                                     break;
                                 }
@@ -1767,6 +1786,20 @@ namespace TradingBot.Services
                             // ничего не делаем
                             break;
                         }
+                        default:
+                        {
+                            // Безопасный дефолт: показываем главное меню, избегая EditMessageText на несуществующем сообщении
+                            try
+                            {
+                                var mainText = _uiManager.GetText("main_menu", settings.Language, 0, "0.00", 0);
+                                await bot.SendMessage(cbChatId, mainText, replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: cancellationToken);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, $"Unhandled callback action '{action}'");
+                            }
+                            break;
+                        }
                     }
                 }
             }
@@ -1841,7 +1874,7 @@ namespace TradingBot.Services
                             break;
 
                         case "rr":
-                            state.Trade.RR = TryParseNullableDecimal(text);
+                            state.Trade.RR = text;
                             break;
 
                         case "profit":
@@ -2060,7 +2093,7 @@ namespace TradingBot.Services
 
             await UpdateRecentSettingsAsync(userId, trade, settings);
 
-            var baseText = _uiManager.GetText("trade_saved", settings.Language, trade.Ticker, trade.PnL);
+            var baseText = _uiManager.GetText("trade_saved", settings.Language, trade.Ticker ?? "-", trade.PnL);
             var mainMenu = _uiManager.GetMainMenu(settings);
             var sentMsg = await bot.SendMessage(chatId, baseText, replyMarkup: mainMenu, cancellationToken: ct);
 
@@ -2119,11 +2152,11 @@ namespace TradingBot.Services
                     string filterValue = filterParts[1];
                     if (filterType == "ticker")
                     {
-                        trades = trades.Where(t => t.Ticker.Equals(filterValue, StringComparison.OrdinalIgnoreCase)).ToList();
+                        trades = trades.Where(t => string.Equals(t.Ticker, filterValue, StringComparison.OrdinalIgnoreCase)).ToList();
                     }
                     else if (filterType == "direction")
                     {
-                        trades = trades.Where(t => t.Direction.Equals(filterValue, StringComparison.OrdinalIgnoreCase)).ToList();
+                        trades = trades.Where(t => string.Equals(t.Direction, filterValue, StringComparison.OrdinalIgnoreCase)).ToList();
                     }
                     else if (filterType == "pnl" && filterParts.Length == 3)
                     {
@@ -2164,7 +2197,7 @@ namespace TradingBot.Services
                     ctx,
                     setup,
                     t.Result ?? "",
-                    (t.RR?.ToString(CultureInfo.InvariantCulture) ?? ""),
+                    (t.RR ?? ""),
                     (t.Risk?.ToString(CultureInfo.InvariantCulture) ?? ""),
                     entry,
                     note,

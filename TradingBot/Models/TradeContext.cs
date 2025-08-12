@@ -38,7 +38,6 @@ namespace TradingBot.Models
 
             // Числа → REAL для SQLite
             e.Property(t => t.PnL).HasColumnType("REAL");
-            e.Property(t => t.RR).HasColumnType("REAL");
             e.Property(t => t.Risk).HasColumnType("REAL");
 
             // Multi-select (JSON) + сравнение коллекций
