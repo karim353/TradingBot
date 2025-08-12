@@ -162,7 +162,7 @@ namespace TradingBot.Services
                     return false;
                 }
 
-                return await _personalNotionService.TestNotionConnectionAsync(settings);
+                return await _personalNotionService.TestPersonalNotionConnectionAsync(settings);
             }
             catch (Exception ex)
             {

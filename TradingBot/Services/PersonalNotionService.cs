@@ -8,16 +8,94 @@ using TradingBot.Models;
 
 namespace TradingBot.Services
 {
-    public class PersonalNotionService
+    /// <summary>
+    /// Базовый класс для общих методов работы с Notion API
+    /// </summary>
+    public abstract class NotionServiceBase
+    {
+        protected readonly ILogger _logger;
+
+        protected NotionServiceBase(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        /// <summary>
+        /// Безопасно извлекает опции из свойства Notion
+        /// </summary>
+        protected List<string> ExtractOptionsFromProperty(JsonElement property, string propertyType)
+        {
+            var options = new List<string>();
+            
+            try
+            {
+                if (property.TryGetProperty(propertyType, out var typeElement) && 
+                    typeElement.TryGetProperty("options", out var optionsElement))
+                {
+                    foreach (var opt in optionsElement.EnumerateArray())
+                    {
+                        if (opt.TryGetProperty("name", out var nameElement))
+                        {
+                            var name = nameElement.GetString();
+                            if (!string.IsNullOrWhiteSpace(name))
+                            {
+                                options.Add(name);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Ошибка при извлечении опций из свойства {PropertyType}", propertyType);
+            }
+            
+            return options;
+        }
+
+        /// <summary>
+        /// Безопасно извлекает схему базы данных Notion
+        /// </summary>
+        protected Dictionary<string, List<string>> ExtractDatabaseSchema(JsonElement propertiesElement)
+        {
+            var optionsByField = new Dictionary<string, List<string>>();
+            
+            try
+            {
+                foreach (var prop in propertiesElement.EnumerateObject())
+                {
+                    if (prop.Value.TryGetProperty("type", out var typeElement))
+                    {
+                        var type = typeElement.GetString();
+                        if (type == "select" || type == "multi_select")
+                        {
+                            var options = ExtractOptionsFromProperty(prop.Value, type);
+                            if (options.Any())
+                            {
+                                optionsByField[prop.Name] = options;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Ошибка при извлечении схемы базы данных");
+            }
+            
+            return optionsByField;
+        }
+    }
+
+    public class PersonalNotionService : NotionServiceBase
     {
         private readonly NotionHttpClientFactory _httpClientFactory;
-        private readonly ILogger<PersonalNotionService> _logger;
         private readonly IConfiguration _configuration;
 
         public PersonalNotionService(NotionHttpClientFactory httpClientFactory, ILogger<PersonalNotionService> logger, IConfiguration configuration)
+            : base(logger)
         {
             _httpClientFactory = httpClientFactory;
-            _logger = logger;
             _configuration = configuration;
         }
 
@@ -57,27 +135,14 @@ namespace TradingBot.Services
                         string json = await response.Content.ReadAsStringAsync();
                         using JsonDocument doc = JsonDocument.Parse(json);
                         
-                        var optionsByField = new Dictionary<string, List<string>>();
-                        JsonElement props = doc.RootElement.GetProperty("properties");
-                        
-                        foreach (var prop in props.EnumerateObject())
+                        if (doc.RootElement.TryGetProperty("properties", out var props))
                         {
-                            if (prop.Value.GetProperty("type").GetString() is string type && 
-                                (type == "select" || type == "multi_select"))
-                            {
-                                var options = new List<string>();
-                                foreach (var opt in prop.Value.GetProperty(type).GetProperty("options").EnumerateArray())
-                                {
-                                    string? name = opt.GetProperty("name").GetString();
-                                    if (!string.IsNullOrWhiteSpace(name))
-                                        options.Add(name);
-                                    }
-                                optionsByField[prop.Name] = options;
-                            }
+                            var optionsByField = ExtractDatabaseSchema(props);
+                            _logger.LogInformation("Получено {Count} полей с опциями из персональной БД Notion пользователя", optionsByField.Count);
+                            return optionsByField;
                         }
-
-                        _logger.LogInformation("Получено {Count} полей с опциями из персональной БД Notion пользователя", optionsByField.Count);
-                        return optionsByField;
+                        
+                        return new Dictionary<string, List<string>>();
                     });
             }
             catch (Exception ex)
@@ -99,15 +164,17 @@ namespace TradingBot.Services
         /// <summary>
         /// Проверяет доступность персональной базы данных Notion
         /// </summary>
-        public async Task<bool> TestNotionConnectionAsync(UserSettings userSettings)
+        public async Task<bool> TestPersonalNotionConnectionAsync(UserSettings userSettings)
         {
-            if (!userSettings.NotionEnabled || string.IsNullOrEmpty(userSettings.NotionDatabaseId))
+            if (!userSettings.NotionEnabled || string.IsNullOrEmpty(userSettings.NotionIntegrationToken) || string.IsNullOrEmpty(userSettings.NotionDatabaseId))
+            {
                 return false;
+            }
 
             try
             {
                 return await _httpClientFactory.UseClientAsync(
-                    userSettings.NotionIntegrationToken!,
+                    userSettings.NotionIntegrationToken,
                     async (client) =>
                     {
                         var response = await client.GetAsync($"https://api.notion.com/v1/databases/{userSettings.NotionDatabaseId}");
@@ -116,7 +183,7 @@ namespace TradingBot.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Ошибка при проверке подключения к Notion");
+                _logger.LogError(ex, "Ошибка при проверке подключения к персональной БД Notion");
                 return false;
             }
         }

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using Telegram.Bot.Types.ReplyMarkups;
 using TradingBot.Models;
 
@@ -12,6 +14,33 @@ namespace TradingBot.Services
     /// </summary>
     public class KeyboardService
     {
+        /// <summary>
+        /// Создает стабильный callback_data для предотвращения коллизий
+        /// </summary>
+        private static string CreateStableCallbackData(string action, string? value = null, string? tradeId = null)
+        {
+            var parts = new List<string> { action };
+            
+            if (!string.IsNullOrEmpty(value))
+            {
+                // Создаем короткий хэш для значения, чтобы избежать коллизий
+                using var sha256 = SHA256.Create();
+                var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(value));
+                var shortHash = Convert.ToBase64String(hashBytes).Substring(0, 8)
+                    .Replace("+", "PLUS")
+                    .Replace("/", "SLASH")
+                    .Replace("=", "EQ");
+                parts.Add(shortHash);
+            }
+            
+            if (!string.IsNullOrEmpty(tradeId))
+            {
+                parts.Add(tradeId);
+            }
+            
+            return string.Join("_", parts);
+        }
+
         /// <summary>
         /// Создает клавиатуру с опциями для поля сделки
         /// </summary>
@@ -96,225 +125,147 @@ namespace TradingBot.Services
             {
                 var paginationRow = new List<InlineKeyboardButton>();
                 if (page > 1) 
-                    paginationRow.Add(InlineKeyboardButton.WithCallbackData("◀", $"more_{field}_page_{page - 1}_trade_{tradeId}"));
+                    paginationRow.Add(InlineKeyboardButton.WithCallbackData("◀", CreateStableCallbackData("more", field, $"{page - 1}_{tradeId}")));
                 
-                paginationRow.Add(InlineKeyboardButton.WithCallbackData($"[{page}/{totalPages}]", "noop"));
+                paginationRow.Add(InlineKeyboardButton.WithCallbackData($"{page}/{totalPages}", "pagination_info"));
                 
                 if (page < totalPages) 
-                    paginationRow.Add(InlineKeyboardButton.WithCallbackData("▶", $"more_{field}_page_{page + 1}_trade_{tradeId}"));
+                    paginationRow.Add(InlineKeyboardButton.WithCallbackData("▶", CreateStableCallbackData("more", field, $"{page + 1}_{tradeId}")));
                 
                 rows.Add(paginationRow.ToArray());
             }
 
-            // Кнопки навигации
-            if (step > 1 && step <= 14)
-                rows.Add(new[] {
-                    InlineKeyboardButton.WithCallbackData("◀️ Назад", $"back_trade_{tradeId}_step_{step}"),
-                    InlineKeyboardButton.WithCallbackData("➡ Пропустить", $"skip_trade_{tradeId}_step_{step}")
-                });
-
-            // Дополнительные опции
-            rows.Add(new[] { InlineKeyboardButton.WithCallbackData("⌨️ Ввести вручную", $"input_{field}_trade_{tradeId}") });
-            rows.Add(new[] {
-                InlineKeyboardButton.WithCallbackData("✅ Сохранить", $"save_trade_{tradeId}"),
-                InlineKeyboardButton.WithCallbackData("🚫 Отмена", "cancel")
-            });
+            // Кнопка "Назад"
+            rows.Add(new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", CreateStableCallbackData("back", field, tradeId)) });
 
             return new InlineKeyboardMarkup(rows);
         }
 
         /// <summary>
-        /// Создает кнопку для опции
+        /// Создает кнопку для выбора опции
         /// </summary>
-        private InlineKeyboardButton CreateOptionButton(string value, string field, string tradeId, HashSet<string> selected)
+        private InlineKeyboardButton CreateOptionButton(string option, string field, string tradeId, HashSet<string> selected)
         {
-            string text = (selected.Contains(value) ? "✅ " : "") + value;
-            string callbackData = $"set_{field}_{UIManager.SanitizeCallbackData(value)}_trade_{tradeId}";
+            var isSelected = selected.Contains(option, StringComparer.OrdinalIgnoreCase);
+            var text = isSelected ? $"✅ {option}" : option;
+            var callbackData = CreateStableCallbackData("set", $"{field}_{option}", tradeId);
+            
             return InlineKeyboardButton.WithCallbackData(text, callbackData);
         }
 
         /// <summary>
-        /// Создает главное меню
+        /// Создает клавиатуру настроек
         /// </summary>
-        public InlineKeyboardMarkup GetMainMenu(UserSettings settings)
-        {
-            var buttons = new List<InlineKeyboardButton[]>
-            {
-                new[]
-                {
-                    InlineKeyboardButton.WithCallbackData("➕ Добавить сделку", "start_trade"),
-                    InlineKeyboardButton.WithCallbackData("📈 Моя статистика", "stats")
-                },
-                new[]
-                {
-                    InlineKeyboardButton.WithCallbackData("📜 История сделок", "history"),
-                    InlineKeyboardButton.WithCallbackData("⚙️ Настройки", "settings")
-                },
-                new[] { InlineKeyboardButton.WithCallbackData("🆘 Помощь", "help") }
-            };
-            return new InlineKeyboardMarkup(buttons);
-        }
-
-        /// <summary>
-        /// Создает меню настроек
-        /// </summary>
-        public InlineKeyboardMarkup GetSettingsMenu(UserSettings settings)
+        public InlineKeyboardMarkup CreateSettingsKeyboard(UserSettings settings)
         {
             var rows = new List<InlineKeyboardButton[]>
             {
                 new[] { InlineKeyboardButton.WithCallbackData("🌐 Сменить язык", "settings_language") },
-                new[] { InlineKeyboardButton.WithCallbackData(
-                    settings.NotificationsEnabled ? "🔔 Уведомления: ✅" : "🔔 Уведомления: ❌", 
-                    "settings_notifications") },
+                new[] { InlineKeyboardButton.WithCallbackData("🔔 Уведомления", "settings_notifications") },
                 new[] { InlineKeyboardButton.WithCallbackData("📈 Избранные тикеры", "settings_tickers") },
-                new[] { InlineKeyboardButton.WithCallbackData("🌐 Настройки Notion", "settings_notion") },
-                new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "main") }
+                new[] { InlineKeyboardButton.WithCallbackData("🌐 Настройки Notion", "settings_notion") }
             };
+
+            // Добавляем кнопку "Назад"
+            rows.Add(new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "main") });
 
             return new InlineKeyboardMarkup(rows);
         }
 
         /// <summary>
-        /// Создает меню настроек Notion
+        /// Создает клавиатуру настроек Notion
         /// </summary>
-        public InlineKeyboardMarkup GetNotionSettingsMenu(UserSettings settings)
+        public InlineKeyboardMarkup CreateNotionSettingsKeyboard(UserSettings settings)
         {
             var rows = new List<InlineKeyboardButton[]>();
-            
-            if (settings.NotionEnabled)
+
+            if (settings.NotionEnabled && !string.IsNullOrEmpty(settings.NotionIntegrationToken))
             {
-                // Если Notion подключен, показываем опции управления
-                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🔑 Изменить токен", "notion_token_input") });
-                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🗄️ Изменить Database ID", "notion_database_input") });
-                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🧪 Проверить подключение", "notion_test_connection") });
                 rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🔌 Отключить Notion", "notion_disconnect") });
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🔑 Изменить токен", "notion_token") });
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🗄️ Изменить базу", "notion_database") });
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🧪 Проверить подключение", "notion_test") });
             }
             else
             {
-                // Если Notion не подключен, показываем опцию подключения
                 rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🔗 Подключить Notion", "notion_connect") });
             }
-            
-            rows.Add(new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "settings") });
-            
+
+            // Кнопка "Назад"
+            rows.Add(new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "settings_notion") });
+
             return new InlineKeyboardMarkup(rows);
         }
 
         /// <summary>
         /// Создает клавиатуру для ввода токена Notion
         /// </summary>
-        public InlineKeyboardMarkup GetNotionTokenInputMenu()
+        public InlineKeyboardMarkup CreateNotionTokenInputKeyboard()
         {
             return new InlineKeyboardMarkup(new[]
             {
-                new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "settings_notion") }
+                new[] { InlineKeyboardButton.WithCallbackData("❌ Отмена", "notion_cancel") }
             });
         }
 
         /// <summary>
         /// Создает клавиатуру для ввода Database ID Notion
         /// </summary>
-        public InlineKeyboardMarkup GetNotionDatabaseInputMenu()
+        public InlineKeyboardMarkup CreateNotionDatabaseInputKeyboard()
         {
             return new InlineKeyboardMarkup(new[]
             {
-                new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "settings_notion") }
-            });
-        }
-
-        /// <summary>
-        /// Создает клавиатуру для выбора языка
-        /// </summary>
-        public InlineKeyboardMarkup GetLanguageSelectionMenu()
-        {
-            return new InlineKeyboardMarkup(new[]
-            {
-                new[] { 
-                    InlineKeyboardButton.WithCallbackData("🇷🇺 Русский", "language_ru"),
-                    InlineKeyboardButton.WithCallbackData("🇺🇸 English", "language_en")
-                },
-                new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "settings") }
-            });
-        }
-
-        /// <summary>
-        /// Создает клавиатуру для управления уведомлениями
-        /// </summary>
-        public InlineKeyboardMarkup GetNotificationsMenu(UserSettings settings)
-        {
-            return new InlineKeyboardMarkup(new[]
-            {
-                new[] { 
-                    InlineKeyboardButton.WithCallbackData("🔔 Включить", "notifications_on"),
-                    InlineKeyboardButton.WithCallbackData("🔕 Выключить", "notifications_off")
-                },
-                new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "settings") }
+                new[] { InlineKeyboardButton.WithCallbackData("❌ Отмена", "notion_cancel") }
             });
         }
 
         /// <summary>
         /// Создает клавиатуру для управления избранными тикерами
         /// </summary>
-        public InlineKeyboardMarkup GetFavoriteTickersMenu(List<string> favoriteTickers, List<string> popularTickers)
+        public InlineKeyboardMarkup CreateFavoriteTickersKeyboard(UserSettings settings)
         {
             var rows = new List<InlineKeyboardButton[]>();
-            
-            // Показываем избранные тикеры
-            if (favoriteTickers.Any())
+
+            if (settings.FavoriteTickers != null && settings.FavoriteTickers.Any())
             {
-                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("⭐ Избранные тикеры:", "noop") });
-                
-                // Группируем по 3 в ряд
-                for (int i = 0; i < favoriteTickers.Count; i += 3)
+                foreach (var ticker in settings.FavoriteTickers.Take(20)) // Ограничиваем 20 тикерами
                 {
-                    var row = new List<InlineKeyboardButton>();
-                    for (int j = 0; j < 3 && i + j < favoriteTickers.Count; j++)
-                    {
-                        var ticker = favoriteTickers[i + j];
-                        row.Add(InlineKeyboardButton.WithCallbackData($"❌ {ticker}", $"remove_ticker_{ticker}"));
-                    }
-                    rows.Add(row.ToArray());
+                    rows.Add(new[] { InlineKeyboardButton.WithCallbackData($"❌ {ticker}", CreateStableCallbackData("remove_ticker", ticker)) });
                 }
             }
 
-            // Показываем популярные тикеры для добавления
-            if (popularTickers.Any())
-            {
-                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("📈 Популярные тикеры:", "noop") });
-                
-                // Группируем по 3 в ряд
-                for (int i = 0; i < popularTickers.Count; i += 3)
-                {
-                    var row = new List<InlineKeyboardButton>();
-                    for (int j = 0; j < 3 && i + j < popularTickers.Count; j++)
-                    {
-                        var ticker = popularTickers[i + j];
-                        if (!favoriteTickers.Contains(ticker, StringComparer.OrdinalIgnoreCase))
-                        {
-                            row.Add(InlineKeyboardButton.WithCallbackData($"➕ {ticker}", $"add_ticker_{ticker}"));
-                        }
-                    }
-                    if (row.Any())
-                        rows.Add(row.ToArray());
-                }
-            }
+            // Кнопка "Назад"
+            rows.Add(new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "settings_tickers") });
 
-            rows.Add(new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "settings") });
-            
             return new InlineKeyboardMarkup(rows);
         }
 
         /// <summary>
-        /// Создает клавиатуру для подтверждения действия
+        /// Создает клавиатуру для выбора языка
         /// </summary>
-        public InlineKeyboardMarkup GetConfirmationMenu(string action, string callbackData)
+        public InlineKeyboardMarkup CreateLanguageSelectionKeyboard()
         {
             return new InlineKeyboardMarkup(new[]
             {
-                new[] { 
-                    InlineKeyboardButton.WithCallbackData("✅ Да", callbackData),
-                    InlineKeyboardButton.WithCallbackData("❌ Нет", "settings")
-                }
+                new[] { InlineKeyboardButton.WithCallbackData("🇷🇺 Русский", "language_ru") },
+                new[] { InlineKeyboardButton.WithCallbackData("🇺🇸 English", "language_en") },
+                new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "settings_language") }
+            });
+        }
+
+        /// <summary>
+        /// Создает клавиатуру для уведомлений
+        /// </summary>
+        public InlineKeyboardMarkup CreateNotificationsKeyboard(UserSettings settings)
+        {
+            var status = settings.NotificationsEnabled ? "🔔 Включены" : "🔕 Отключены";
+            var toggleText = settings.NotificationsEnabled ? "🔕 Отключить" : "🔔 Включить";
+
+            return new InlineKeyboardMarkup(new[]
+            {
+                new[] { InlineKeyboardButton.WithCallbackData(status, "notification_status") },
+                new[] { InlineKeyboardButton.WithCallbackData(toggleText, "settings_notifications") },
+                new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "settings_notifications") }
             });
         }
     }

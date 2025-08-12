@@ -8,17 +8,16 @@ using TradingBot.Models;
 
 namespace TradingBot.Services
 {
-    public class NotionService
+    public class NotionService : NotionServiceBase
     {
         private readonly HttpClient _httpClient;
         private readonly string _databaseId;
-        private readonly ILogger<NotionService> _logger;
 
-        public NotionService(HttpClient httpClient, IConfiguration config, ILogger<NotionService> logger)
+        public NotionService(HttpClient httpClient, string databaseId, ILogger<NotionService> logger)
+            : base(logger)
         {
             _httpClient = httpClient;
-            _databaseId = config["Notion:DatabaseId"] ?? throw new Exception("Notion DatabaseId not configured.");
-            _logger = logger;
+            _databaseId = databaseId;
         }
 
         public async Task<string?> CreatePageForTradeAsync(Trade trade)
@@ -41,7 +40,8 @@ namespace TradingBot.Services
                 var pagePayload = new { parent = new { database_id = _databaseId }, properties };
                 var content = new StringContent(JsonSerializer.Serialize(pagePayload), Encoding.UTF8, "application/json");
 
-                HttpResponseMessage response = await _httpClient.PostAsync("https://api.notion.com/v1/pages", content);
+                var response = await SendWithRetryAsync(async () => 
+                    await _httpClient.PostAsync("https://api.notion.com/v1/pages", content));
                 if (response.IsSuccessStatusCode)
                 {
                     string resultJson = await response.Content.ReadAsStringAsync();
@@ -87,7 +87,8 @@ namespace TradingBot.Services
                 var payload = new { properties };
                 var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
                 string uri = $"https://api.notion.com/v1/pages/{trade.NotionPageId}";
-                HttpResponseMessage response = await _httpClient.PatchAsync(uri, content);
+                var response = await SendWithRetryAsync(async () => 
+                    await _httpClient.PatchAsync(uri, content));
                 if (response.IsSuccessStatusCode)
                 {
                     _logger.LogInformation("Страница сделки {0} обновлена в Notion", trade.NotionPageId);
@@ -115,7 +116,8 @@ namespace TradingBot.Services
                 {
                     Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
                 };
-                HttpResponseMessage response = await _httpClient.SendAsync(req);
+                var response = await SendWithRetryAsync(async () => 
+                    await _httpClient.SendAsync(req));
                 if (response.IsSuccessStatusCode)
                 {
                     _logger.LogInformation("Страница сделки {0} помечена как удалённая (архив) в Notion", pageId);
@@ -144,7 +146,8 @@ namespace TradingBot.Services
                     ? new { page_size = 100 } 
                     : new { page_size = 100, start_cursor = nextCursor };
                 var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-                HttpResponseMessage response = await _httpClient.PostAsync($"https://api.notion.com/v1/databases/{_databaseId}/query", content);
+                var response = await SendWithRetryAsync(async () => 
+                    await _httpClient.PostAsync($"https://api.notion.com/v1/databases/{_databaseId}/query", content));
                 if (!response.IsSuccessStatusCode)
                 {
                     string err = await response.Content.ReadAsStringAsync();
@@ -167,32 +170,33 @@ namespace TradingBot.Services
 
         public async Task<Dictionary<string, List<string>>> GetSelectOptionsAsync()
         {
-            HttpResponseMessage response = await _httpClient.GetAsync($"https://api.notion.com/v1/databases/{_databaseId}");
-            if (!response.IsSuccessStatusCode)
+            try
             {
-                string error = await response.Content.ReadAsStringAsync();
-                _logger.LogError("Ошибка при получении схемы базы Notion: {0}", error);
-                throw new Exception("Не удалось загрузить справочные данные из Notion");
-            }
-            string json = await response.Content.ReadAsStringAsync();
-            using JsonDocument doc = JsonDocument.Parse(json);
-            var optionsByField = new Dictionary<string, List<string>>();
-            JsonElement props = doc.RootElement.GetProperty("properties");
-            foreach (var prop in props.EnumerateObject())
-            {
-                if (prop.Value.GetProperty("type").GetString() is string type && (type == "select" || type == "multi_select"))
+                var response = await SendWithRetryAsync(async () => 
+                    await _httpClient.GetAsync($"https://api.notion.com/v1/databases/{_databaseId}"));
+
+                if (!response.IsSuccessStatusCode)
                 {
-                    var options = new List<string>();
-                    foreach (var opt in prop.Value.GetProperty(type).GetProperty("options").EnumerateArray())
-                    {
-                        string? name = opt.GetProperty("name").GetString();
-                        if (!string.IsNullOrWhiteSpace(name))
-                            options.Add(name);
-                    }
-                    optionsByField[prop.Name] = options;
+                    string error = await response.Content.ReadAsStringAsync();
+                    _logger.LogError("Ошибка при получении схемы базы Notion: {0}", error);
+                    throw new Exception("Не удалось загрузить справочные данные из Notion");
                 }
+                
+                string json = await response.Content.ReadAsStringAsync();
+                using JsonDocument doc = JsonDocument.Parse(json);
+                
+                if (doc.RootElement.TryGetProperty("properties", out var props))
+                {
+                    return ExtractDatabaseSchema(props);
+                }
+                
+                return new Dictionary<string, List<string>>();
             }
-            return optionsByField;
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка при получении схемы базы Notion");
+                throw;
+            }
         }
 
         public async Task<List<string>> GetSelectOptionsAsync(string propertyName)
@@ -274,10 +278,32 @@ namespace TradingBot.Services
             Trade trade = new Trade
             {
                 NotionPageId = page.GetProperty("id").GetString() ?? string.Empty,
-                Ticker = props.GetProperty("Pair").GetProperty("title").EnumerateArray()
-                                 .FirstOrDefault().GetProperty("text").GetProperty("content").GetString() ?? string.Empty,
                 Date = DateTime.Parse(props.GetProperty("Date").GetProperty("date").GetProperty("start").GetString() ?? DateTime.UtcNow.ToString())
             };
+
+            // Безопасное извлечение тикера с проверкой на null
+            if (props.TryGetProperty("Pair", out var pairElem) && 
+                pairElem.TryGetProperty("title", out var titleElem) && 
+                titleElem.ValueKind == JsonValueKind.Array)
+            {
+                var titleArray = titleElem.EnumerateArray();
+                var firstTitle = titleArray.FirstOrDefault();
+                if (firstTitle.ValueKind != JsonValueKind.Undefined && 
+                    firstTitle.TryGetProperty("text", out var textElem) && 
+                    textElem.TryGetProperty("content", out var contentElem))
+                {
+                    trade.Ticker = contentElem.GetString() ?? string.Empty;
+                }
+                else
+                {
+                    trade.Ticker = string.Empty;
+                }
+            }
+            else
+            {
+                trade.Ticker = string.Empty;
+            }
+
             if (props.TryGetProperty("Account", out var accElem) && accElem.TryGetProperty("select", out var accVal) && accVal.ValueKind != JsonValueKind.Null)
             {
                 trade.Account = accVal.GetProperty("name").GetString();
@@ -342,10 +368,15 @@ namespace TradingBot.Services
             return trade;
         }
 
+        /// <summary>
+        /// Отправляет HTTP-запрос с автоматическими повторами и экспоненциальным бэк-оффом
+        /// </summary>
         private async Task<HttpResponseMessage> SendWithRetryAsync(Func<Task<HttpResponseMessage>> sendFunc)
         {
             int attempt = 0;
-            while (true)
+            int maxAttempts = 3;
+            
+            while (attempt < maxAttempts)
             {
                 attempt++;
                 try
@@ -353,9 +384,16 @@ namespace TradingBot.Services
                     HttpResponseMessage response = await sendFunc();
                     if (response.IsSuccessStatusCode)
                         return response;
-                    if ((int)response.StatusCode >= 500 && attempt < 3)
+                    
+                    // Повторяем только для серверных ошибок (5xx)
+                    if ((int)response.StatusCode >= 500 && attempt < maxAttempts)
                     {
-                        _logger.LogWarning("Notion API вернул ошибку {0}, попытка {1}", response.StatusCode, attempt);
+                        _logger.LogWarning("Notion API вернул ошибку {StatusCode}, попытка {Attempt}/{MaxAttempts}", 
+                            response.StatusCode, attempt, maxAttempts);
+                        
+                        // Экспоненциальный бэк-офф: 1с, 2с, 4с
+                        var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1));
+                        await Task.Delay(delay);
                     }
                     else
                     {
@@ -364,11 +402,24 @@ namespace TradingBot.Services
                 }
                 catch (HttpRequestException ex)
                 {
-                    _logger.LogWarning(ex, "Сеть недоступна, попытка {0}", attempt);
-                    if (attempt >= 3) throw;
+                    _logger.LogWarning(ex, "Сетевая ошибка при попытке {Attempt}/{MaxAttempts}", attempt, maxAttempts);
+                    if (attempt >= maxAttempts) throw;
+                    
+                    // Экспоненциальный бэк-офф для сетевых ошибок
+                    var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1));
+                    await Task.Delay(delay);
                 }
-                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+                catch (TaskCanceledException ex)
+                {
+                    _logger.LogWarning(ex, "Таймаут при попытке {Attempt}/{MaxAttempts}", attempt, maxAttempts);
+                    if (attempt >= maxAttempts) throw;
+                    
+                    var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1));
+                    await Task.Delay(delay);
+                }
             }
+            
+            throw new HttpRequestException($"Не удалось выполнить запрос после {maxAttempts} попыток");
         }
     }
 }

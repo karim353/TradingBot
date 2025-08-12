@@ -34,7 +34,7 @@ namespace TradingBot.Services
                     NotionDatabaseId = databaseId
                 };
 
-                var isConnectionValid = await _personalNotionService.TestNotionConnectionAsync(testSettings);
+                var isConnectionValid = await _personalNotionService.TestPersonalNotionConnectionAsync(testSettings);
                 if (!isConnectionValid)
                 {
                     _logger.LogWarning("Не удалось подключиться к Notion с указанными настройками для пользователя");
@@ -96,7 +96,7 @@ namespace TradingBot.Services
                     NotionDatabaseId = userSettings.NotionDatabaseId
                 };
 
-                var isConnectionValid = await _personalNotionService.TestNotionConnectionAsync(testSettings);
+                var isConnectionValid = await _personalNotionService.TestPersonalNotionConnectionAsync(testSettings);
                 if (!isConnectionValid)
                 {
                     _logger.LogWarning("Новый токен недействителен");
@@ -135,7 +135,7 @@ namespace TradingBot.Services
                     NotionDatabaseId = newDatabaseId
                 };
 
-                var isConnectionValid = await _personalNotionService.TestNotionConnectionAsync(testSettings);
+                var isConnectionValid = await _personalNotionService.TestPersonalNotionConnectionAsync(testSettings);
                 if (!isConnectionValid)
                 {
                     _logger.LogWarning("Новый ID базы данных недействителен");
@@ -170,7 +170,7 @@ namespace TradingBot.Services
                     return (true, false, "Неполные настройки интеграции");
                 }
 
-                var isConnected = await _personalNotionService.TestNotionConnectionAsync(userSettings);
+                var isConnected = await _personalNotionService.TestPersonalNotionConnectionAsync(userSettings);
                 if (!isConnected)
                 {
                     return (true, false, "Нет подключения к Notion API");

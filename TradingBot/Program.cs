@@ -48,30 +48,27 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddMemoryCache();
         services.AddScoped<TradeRepository>();
         services.AddScoped<UserSettingsService>();
+        services.AddScoped<ErrorHandlingService>();
         
-        // HTTP клиент для Notion API
-        services.AddHttpClient<NotionService>((provider, client) =>
-        {
-            string? notionToken = config["Notion:ApiToken"];
-            if (!string.IsNullOrWhiteSpace(notionToken))
-            {
-                client.BaseAddress = new Uri("https://api.notion.com/v1/");
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {notionToken}");
-                client.DefaultRequestHeaders.Add("Notion-Version", "2022-06-28");
-            }
-        });
+        // HTTP клиенты для Notion API с Polly политиками
+        services.AddNotionHttpClients();
         
         // Фабрика HTTP клиентов для персональных настроек Notion
-        services.AddHttpClient<NotionHttpClientFactory>((provider, client) =>
-        {
-            client.Timeout = TimeSpan.FromSeconds(30);
-        });
         services.AddSingleton<NotionHttpClientFactory>();
         
         // Сервисы для работы с Notion
         services.AddScoped<PersonalNotionService>();
         services.AddScoped<NotionSettingsService>();
         services.AddScoped<NotionSchemaCacheService>();
+        
+        // Добавляем NotionService с конфигурацией
+        services.AddScoped<NotionService>(provider =>
+        {
+            var httpClient = provider.GetRequiredService<IHttpClientFactory>().CreateClient("NotionClient");
+            var databaseId = config["Notion:DatabaseId"] ?? throw new Exception("Notion DatabaseId not configured.");
+            var logger = provider.GetRequiredService<ILogger<NotionService>>();
+            return new NotionService(httpClient, databaseId, logger);
+        });
         
         // Сервис фоновых задач
         services.AddSingleton<BackgroundTaskService>();
