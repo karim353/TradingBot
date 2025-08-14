@@ -31,16 +31,25 @@ namespace TradingBot.Services
             await _botClient.SetMyCommands(new[]
             {
                 new BotCommand { Command = "start", Description = "🚀 Запуск бота и обучение" },
-                new BotCommand { Command = "menu", Description = "📋 Главное меню" }
+                new BotCommand { Command = "menu", Description = "📋 Главное меню" },
+                new BotCommand { Command = "help", Description = "🆘 Помощь" }
             }, cancellationToken: stoppingToken);
+
+            // Получаем один экземпляр UpdateHandler
+            var handler = _serviceProvider.GetRequiredService<UpdateHandler>();
 
             _botClient.StartReceiving(
                 // Обработчик входящего обновления
                 async (bot, update, ct) =>
                 {
-                    using var scope = _serviceProvider.CreateScope();
-                    var handler = scope.ServiceProvider.GetRequiredService<UpdateHandler>();
-                    await handler.HandleUpdateAsync(bot, update, ct);
+                    try
+                    {
+                        await handler.HandleUpdateAsync(bot, update, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Ошибка при обработке обновления");
+                    }
                 },
                 // Обработчик ошибок при получении обновлений
                 (bot, exception, ct) =>

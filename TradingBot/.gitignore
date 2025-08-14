@@ -1,0 +1,51 @@
+# Logs
+logs/
+*.log
+
+# Build outputs
+bin/
+obj/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# User-specific files
+appsettings.Development.json
+appsettings.Production.json
+
+# IDE files
+.vs/
+.vscode/
+*.user
+*.suo
+*.userprefs
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Test results
+TestResults/
+*.trx
+
+# Coverage reports
+*.coverage
+*.coveragexml

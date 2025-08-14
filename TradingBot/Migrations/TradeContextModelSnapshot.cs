@@ -23,45 +23,56 @@ namespace TradingBot.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Comment")
-                        .IsRequired()
+                    b.Property<string>("Account")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Context")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("Date")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Direction")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<decimal?>("Entry")
-                        .HasColumnType("REAL");
+                    b.Property<string>("Emotions")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EntryDetails")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("NotionPageId")
-                        .IsRequired()
                         .HasColumnType("TEXT");
-
-                    b.Property<decimal?>("OpenPrice")
-                        .HasColumnType("REAL");
 
                     b.Property<decimal>("PnL")
                         .HasColumnType("REAL");
 
-                    b.Property<decimal?>("SL")
+                    b.Property<string>("Position")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("RR")
                         .HasColumnType("REAL");
 
-                    b.Property<decimal?>("TP")
+                    b.Property<string>("Result")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("Risk")
                         .HasColumnType("REAL");
+
+                    b.Property<string>("Session")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Setup")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Ticker")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<long>("UserId")
                         .HasColumnType("INTEGER");
-
-                    b.Property<decimal?>("Volume")
-                        .HasColumnType("REAL");
 
                     b.HasKey("Id");
 

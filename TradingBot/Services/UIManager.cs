@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Text;
 using Telegram.Bot.Types.ReplyMarkups;
 using TradingBot.Models;
 
@@ -219,7 +220,8 @@ namespace TradingBot.Services
                 ["no_trades"] = "📭 Нет сделок для отображения",
                 ["history_filters"] = "🔍 Фильтры истории:",
                 ["history_page"] = "Страница {0} из {1}",
-                ["export"] = "💾 Экспорт в CSV"
+                ["export"] = "💾 Экспорт в CSV",
+                ["validation_error"] = "⚠️ Ошибка валидации сделки:"
             },
             // Английские тексты (можно аналогично заполнить или оставить пустыми для примера)
             ["en"] = new Dictionary<string, string>
@@ -286,6 +288,7 @@ namespace TradingBot.Services
                 ["period_week"] = "Week",
                 ["period_month"] = "Month",
                 ["period_all"] = "All time",
+                ["validation_error"] = "⚠️ Trade validation error:",
                 ["stats_menu"] = "📊 Statistics:",
                 ["stats_result"] = "📊 Statistics for {0}:\n\n📈 Total trades: {1}\n💰 Total PnL: {2}%\n✅ Profitable: {3}\n❌ Losing: {4}\n🎯 Win rate: {5}%",
                 ["equity_curve"] = "📈 Equity curve:",
@@ -1034,34 +1037,36 @@ namespace TradingBot.Services
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetSettingsMenu(UserSettings settings)
         {
+            // Формируем текст настроек с учётом текущих значений
             string text;
             if (settings.Language == "ru")
             {
                 text = "⚙️ Настройки:\n\n" +
-                       $"🌐 Язык: {(settings.Language == "ru" ? "Русский 🇷🇺" : "English 🇺🇸")}\n" +
+                       $"🌐 Язык: {(settings.Language == "ru" ? "Русский" : "English")}\n" +
                        $"🔔 Уведомления: {(settings.NotificationsEnabled ? "Включены ✅" : "Выключены ❌")}\n" +
-                       $"📈 Избранные тикеры: {settings.FavoriteTickers.Count} шт.\n" +
-                       $"🌐 Notion: {(settings.NotionEnabled ? "Подключен ✅" : "Отключен ❌")}";
+                       $"📈 Избранные тикеры: {settings.FavoriteTickers.Count}\n" +
+                       $"🧩 Notion: {(settings.NotionEnabled ? "Подключен ✅" : "Отключен ❌")}";
             }
             else
             {
                 text = "⚙️ Settings:\n\n" +
-                       $"🌐 Language: {(settings.Language == "ru" ? "Russian 🇷🇺" : "English 🇺🇸")}\n" +
+                       $"🌐 Language: {(settings.Language == "ru" ? "Russian" : "English")}\n" +
                        $"🔔 Notifications: {(settings.NotificationsEnabled ? "Enabled ✅" : "Disabled ❌")}\n" +
                        $"📈 Favorite tickers: {settings.FavoriteTickers.Count} items\n" +
-                       $"🌐 Notion: {(settings.NotionEnabled ? "Connected ✅" : "Disconnected ❌")}";
+                       $"🧩 Notion: {(settings.NotionEnabled ? "Connected ✅" : "Disconnected ❌")}";
             }
 
+            // Основные кнопки меню настроек
             var rows = new List<InlineKeyboardButton[]>
             {
                 new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "🌐 Сменить язык" : "🌐 Change language", "settings_language") },
                 new[] { InlineKeyboardButton.WithCallbackData(
                     settings.Language == "ru" 
-                        ? (settings.NotificationsEnabled ? "🔔 Уведомления: ✅" : "🔔 Уведомления: ❌")
-                        : (settings.NotificationsEnabled ? "🔔 Notifications: ✅" : "🔔 Notifications: ❌"), 
+                        ? (settings.NotificationsEnabled ? "🔕 Отключить уведомления" : "🔔 Включить уведомления")
+                        : (settings.NotificationsEnabled ? "🔕 Disable notifications" : "🔔 Enable notifications"), 
                     "settings_notifications") },
                 new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "📈 Избранные тикеры" : "📈 Favorite tickers", "settings_tickers") },
-                new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_settings", settings.Language), "settings_notion") },
+                new[] { InlineKeyboardButton.WithCallbackData("🌐 Настройки Notion", "settings_notion") },
                 new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "main") }
             };
 
@@ -1069,77 +1074,75 @@ namespace TradingBot.Services
         }
 
         /// <summary>
-        /// Меню настроек Notion
+        /// Возвращает меню настроек Notion
         /// </summary>
         public (string Text, InlineKeyboardMarkup Keyboard) GetNotionSettingsMenu(UserSettings settings)
         {
-            var status = settings.NotionEnabled ? GetText("notion_enabled", settings.Language) : GetText("notion_disabled", settings.Language);
-            
-            string text = $"{GetText("notion_settings", settings.Language)}\n\n{status}";
-            
-            if (settings.NotionEnabled)
+            // Текст описания статуса интеграции
+            var sb = new StringBuilder();
+            sb.AppendLine("🌐 Настройки Notion:\n");
+            if (settings.NotionEnabled && !string.IsNullOrEmpty(settings.NotionIntegrationToken))
             {
-                if (settings.Language == "ru")
-                {
-                    text += $"\n\n🔑 Токен: {(string.IsNullOrEmpty(settings.NotionIntegrationToken) ? "❌ Не указан" : "✅ Указан")}";
-                    text += $"\n🗄️ База данных: {(string.IsNullOrEmpty(settings.NotionDatabaseId) ? "❌ Не указана" : "✅ Указана")}";
-                }
-                else
-                {
-                    text += $"\n\n🔑 Token: {(string.IsNullOrEmpty(settings.NotionIntegrationToken) ? "❌ Not specified" : "✅ Specified")}";
-                    text += $"\n🗄️ Database: {(string.IsNullOrEmpty(settings.NotionDatabaseId) ? "❌ Not specified" : "✅ Specified")}";
-                }
-            }
-            
-            var rows = new List<InlineKeyboardButton[]>();
-            
-            if (settings.NotionEnabled)
-            {
-                // Если Notion подключен, показываем опции управления
-                rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_token", settings.Language), "notion_token_input") });
-                rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_database", settings.Language), "notion_database_input") });
-                rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_test", settings.Language), "notion_test_connection") });
-                rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_disconnect", settings.Language), "notion_disconnect") });
+                sb.AppendLine("Интеграция включена ✅");
+                string shortToken = settings.NotionIntegrationToken.Length > 6
+                    ? settings.NotionIntegrationToken.Substring(0, 6) + "…"
+                    : settings.NotionIntegrationToken;
+                sb.AppendLine($"Токен: {shortToken}");
+                if (!string.IsNullOrEmpty(settings.NotionDatabaseId))
+                    sb.AppendLine($"Database ID: {settings.NotionDatabaseId}");
             }
             else
             {
-                // Если Notion не подключен, показываем опцию подключения
-                rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_connect", settings.Language), "notion_connect") });
+                sb.AppendLine("Интеграция отключена ❌");
+                sb.AppendLine("Вы можете подключить свой аккаунт Notion и использовать персональные справочники.");
             }
-            
-            // Добавляем кнопку помощи
-            var helpText = settings.Language == "ru" ? "❓ Помощь" : "❓ Help";
-            rows.Add(new[] { InlineKeyboardButton.WithCallbackData(helpText, "notion_help") });
-            rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("back_to_settings", settings.Language), "settings") });
-            
-            return (text, new InlineKeyboardMarkup(rows));
+
+            var rows = new List<InlineKeyboardButton[]>();
+            if (settings.NotionEnabled && !string.IsNullOrEmpty(settings.NotionIntegrationToken))
+            {
+                // опции для уже подключённого аккаунта
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🔌 Отключить Notion", "notion_disconnect") });
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🔑 Изменить токен", "notion_token") });
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🗄️ Изменить базу", "notion_database") });
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🧪 Проверить подключение", "notion_test") });
+            }
+            else
+            {
+                // опция для подключения
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🔗 Подключить Notion", "notion_connect") });
+            }
+            // назад в основное меню настроек
+            rows.Add(new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "settings") });
+
+            return (sb.ToString().TrimEnd(), new InlineKeyboardMarkup(rows));
         }
 
         /// <summary>
-        /// Меню ввода токена Notion
+        /// Экран ввода токена Notion
         /// </summary>
-        public (string Text, InlineKeyboardMarkup Keyboard) GetNotionTokenInputMenu(UserSettings settings)
+        public (string Text, InlineKeyboardMarkup Keyboard) GetNotionTokenPrompt(UserSettings settings)
         {
-            string text = GetText("notion_token_input", settings.Language);
+            string text = "🔑 Пожалуйста, отправьте токен интеграции Notion.\n\n" +
+                          "Получить токен можно в настройках интеграции Notion. Если хотите отменить ввод, нажмите кнопку ниже.";
             var keyboard = new InlineKeyboardMarkup(new[]
             {
-                new[] { InlineKeyboardButton.WithCallbackData(GetText("back_to_settings", settings.Language), "settings_notion") }
+                new[] { InlineKeyboardButton.WithCallbackData("❌ Отмена", "notion_cancel") }
             });
-            
             return (text, keyboard);
         }
 
         /// <summary>
-        /// Меню ввода Database ID Notion
+        /// Экран ввода Database ID Notion
         /// </summary>
-        public (string Text, InlineKeyboardMarkup Keyboard) GetNotionDatabaseInputMenu(UserSettings settings)
+        public (string Text, InlineKeyboardMarkup Keyboard) GetNotionDatabasePrompt(UserSettings settings)
         {
-            string text = GetText("notion_database_input", settings.Language);
+            string text = "🗄️ Пожалуйста, отправьте Database ID вашей базы Notion или ссылку на неё.\n\n" +
+                          "Database ID находится в ссылке на вашу базу: это набор символов в конце адреса.\n" +
+                          "Если хотите отменить ввод, нажмите кнопку ниже.";
             var keyboard = new InlineKeyboardMarkup(new[]
             {
-                new[] { InlineKeyboardButton.WithCallbackData(GetText("back_to_settings", settings.Language), "settings_notion") }
+                new[] { InlineKeyboardButton.WithCallbackData("❌ Отмена", "notion_cancel") }
             });
-            
             return (text, keyboard);
         }
 

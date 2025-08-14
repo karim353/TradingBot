@@ -1,0 +1,62 @@
+groups:
+  - name: tradingbot_alerts
+    rules:
+      # Алерт на высокое использование CPU
+      - alert: HighCPUUsage
+        expr: tradingbot_cpu_usage_percentage > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Высокое использование CPU"
+          description: "CPU используется на {{ $value }}% более 5 минут"
+
+      # Алерт на высокое использование памяти
+      - alert: HighMemoryUsage
+        expr: tradingbot_memory_usage_bytes > 500000000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Высокое использование памяти"
+          description: "Используется {{ $value | humanize }}B памяти более 5 минут"
+
+      # Алерт на большое количество ошибок
+      - alert: HighErrorRate
+        expr: rate(tradingbot_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Высокий уровень ошибок"
+          description: "{{ $value }} ошибок в секунду за последние 5 минут"
+
+      # Алерт на медленные запросы к базе данных
+      - alert: SlowDatabaseQueries
+        expr: histogram_quantile(0.95, tradingbot_database_response_time_seconds) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Медленные запросы к базе данных"
+          description: "95% запросов к БД выполняются дольше 1 секунды"
+
+      # Алерт на большой размер базы данных
+      - alert: LargeDatabaseSize
+        expr: tradingbot_database_size_mb > 100
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Большой размер базы данных"
+          description: "Размер БД составляет {{ $value }}MB"
+
+      # Алерт на отсутствие метрик
+      - alert: NoMetrics
+        expr: up{job="tradingbot"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TradingBot недоступен"
+          description: "Prometheus не может получить метрики от TradingBot"
