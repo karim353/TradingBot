@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Детальные метрики - TradingBot</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary-color: #10b981;
+            --accent-color: #f59e0b;
+            --danger-color: #ef4444;
+            --warning-color: #f97316;
+            --success-color: #22c55e;
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --border-color: #475569;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        .header {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .logo i {
+            font-size: 2rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            color: var(--primary-color);
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 2rem 0;
+        }
+
+        .page-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .page-subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+        }
+
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .metric-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .metric-description {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        /* Raw Metrics */
+        .raw-metrics-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+        }
+
+        .raw-metrics-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .raw-metrics-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .copy-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .copy-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .metrics-textarea {
+            width: 100%;
+            height: 400px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            padding: 1rem;
+            resize: vertical;
+        }
+
+        /* Performance Metrics */
+        .performance-section {
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .performance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .performance-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+        }
+
+        .performance-chart {
+            height: 250px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 15px;
+            }
+
+            .page-title {
+                font-size: 2rem;
+            }
+
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .performance-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .nav-links {
+                flex-direction: column;
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-chart-line"></i>
+                    <span>TradingBot Metrics</span>
+                </div>
+                <nav class="nav-links">
+                    <a href="/index.html" class="nav-link">
+                        <i class="fas fa-tachometer-alt"></i>
+                        Дашборд
+                    </a>
+                    <a href="/detailed-metrics.html" class="nav-link active">
+                        <i class="fas fa-chart-bar"></i>
+                        Детальные метрики
+                    </a>
+                    <a href="/metrics" class="nav-link">
+                        <i class="fas fa-code"></i>
+                        Raw Metrics
+                    </a>
+                    <a href="/health" class="nav-link">
+                        <i class="fas fa-heartbeat"></i>
+                        Health Check
+                    </a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <h1 class="page-title">📊 Детальные метрики</h1>
+            <p class="page-subtitle">Подробный анализ производительности и системных показателей TradingBot</p>
+
+            <!-- Metrics Grid -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <h3 class="metric-title">Общая производительность</h3>
+                        <div class="metric-value" id="performance-score">0%</div>
+                    </div>
+                    <p class="metric-description">
+                        Комплексная оценка производительности системы на основе всех метрик
+                    </p>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <h3 class="metric-title">Среднее время ответа</h3>
+                        <div class="metric-value" id="avg-response-time">0ms</div>
+                    </div>
+                    <p class="metric-description">
+                        Среднее время обработки запросов пользователей
+                    </p>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <h3 class="metric-title">Эффективность БД</h3>
+                        <div class="metric-value" id="db-efficiency">0%</div>
+                    </div>
+                    <p class="metric-description">
+                        Показатель эффективности работы с базой данных
+                    </p>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <h3 class="metric-title">Стабильность API</h3>
+                        <div class="metric-value" id="api-stability">0%</div>
+                    </div>
+                    <p class="metric-description">
+                        Процент успешных запросов к внешним API
+                    </p>
+                </div>
+            </div>
+
+            <!-- Performance Charts -->
+            <div class="performance-section">
+                <h2 class="section-title">📈 Анализ производительности</h2>
+                <div class="performance-grid">
+                    <div class="performance-card">
+                        <h3 class="metric-title">Тренд производительности</h3>
+                        <div class="performance-chart">
+                            <canvas id="performanceTrendChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="performance-card">
+                        <h3 class="metric-title">Распределение ошибок</h3>
+                        <div class="performance-chart">
+                            <canvas id="errorDistributionChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="performance-card">
+                        <h3 class="metric-title">Использование ресурсов</h3>
+                        <div class="performance-chart">
+                            <canvas id="resourceUsageChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="performance-card">
+                        <h3 class="metric-title">Активность пользователей</h3>
+                        <div class="performance-chart">
+                            <canvas id="userActivityChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Raw Metrics -->
+            <div class="raw-metrics-section">
+                <div class="raw-metrics-header">
+                    <h2 class="raw-metrics-title">📋 Сырые метрики Prometheus</h2>
+                    <button class="copy-btn" id="copyBtn">
+                        <i class="fas fa-copy"></i>
+                        Копировать
+                    </button>
+                </div>
+                <textarea class="metrics-textarea" id="rawMetrics" readonly placeholder="Загрузка метрик..."></textarea>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/detailed-metrics.js"></script>
+</body>
+</html>
+

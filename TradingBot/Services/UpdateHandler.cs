@@ -684,6 +684,7 @@ namespace TradingBot.Services
         {
             long userId = 0;
             long chatId = 0;
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
             try
             {
@@ -2196,6 +2197,13 @@ namespace TradingBot.Services
                         replyMarkup: _uiManager.GetErrorKeyboard(settings), cancellationToken: cancellationToken);
                 }
             }
+            finally
+            {
+                // Обновляем метрики производительности
+                stopwatch.Stop();
+                var operation = update.Type == UpdateType.Message ? "message" : "callback";
+                await UpdateMetricsAsync(operation, stopwatch.Elapsed, true);
+            }
         }
 
         private async Task HandleTradeInputAsync(ITelegramBotClient bot, long chatId, long userId, UserState state,
@@ -2896,6 +2904,36 @@ namespace TradingBot.Services
             if (field == "setup" && trade.Setup != null) foreach (var v in trade.Setup) selected.Add(v);
             if (field == "emotions" && trade.Emotions != null) foreach (var v in trade.Emotions) selected.Add(v);
             return _uiManager.BuildOptionsKeyboard(field!, options, tradeId, settings, page: page, step: step, selected: selected);
+        }
+
+        private async Task UpdateMetricsAsync(string operation, TimeSpan duration, bool isSuccess = true)
+        {
+            try
+            {
+                // Обновляем метрики производительности
+                _metricsService.RecordRequestDuration(operation, duration);
+                _metricsService.IncrementMessageCounter(operation);
+                
+                if (!isSuccess)
+                {
+                    _metricsService.IncrementErrorCounter("general");
+                }
+
+                // Обновляем системные метрики
+                var process = System.Diagnostics.Process.GetCurrentProcess();
+                _metricsService.RecordMemoryUsage(process.WorkingSet64);
+                
+                // Простая оценка CPU (базовая)
+                var cpuUsage = Math.Min(100, Math.Max(0, process.TotalProcessorTime.TotalMilliseconds / 1000.0));
+                _metricsService.RecordCpuUsage(cpuUsage);
+
+                _logger.LogDebug("Метрики обновлены для операции {Operation}: {Duration}ms, Успех: {IsSuccess}", 
+                    operation, duration.TotalMilliseconds, isSuccess);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ошибка обновления метрик для операции {Operation}", operation);
+            }
         }
     }
 }

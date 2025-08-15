@@ -26,21 +26,31 @@ var host = Host.CreateDefaultBuilder(args)
         webBuilder.UseUrls("http://localhost:5000");
         webBuilder.Configure(app =>
         {
-            app.UseRouting();
-            
             // Логируем запуск веб-сервера
             var logger = app.ApplicationServices.GetRequiredService<ILogger<Program>>();
-            logger.LogInformation("🌐 Веб-сервер запущен на http://localhost:5000");
+            logger.LogInformation("🌐 Настройка веб-сервера...");
             
-            // Эндпоинт для метрик Prometheus
+            // Статические файлы для веб-интерфейса
+            app.UseDefaultFiles();
+            app.UseStaticFiles();
+            
+            logger.LogInformation("🌐 Статические файлы настроены");
+            
+            app.UseRouting();
+            
             app.UseEndpoints(endpoints =>
             {
+                // Простые эндпоинты для тестирования
+                endpoints.MapGet("/test", () => "Test endpoint works!");
+                
+                // Эндпоинт для метрик Prometheus
                 endpoints.MapGet("/metrics", async context =>
                 {
                     logger.LogInformation("📊 Запрос метрик от {RemoteIpAddress}", context.Connection.RemoteIpAddress);
                     context.Response.ContentType = "text/plain; version=0.0.4; charset=utf-8";
                     var metrics = Metrics.DefaultRegistry.ToString() ?? string.Empty;
                     await context.Response.WriteAsync(metrics);
+                    logger.LogInformation("📊 Метрики отправлены, размер: {Size} символов", metrics.Length);
                 });
                 
                 // Эндпоинт для health checks
@@ -48,27 +58,20 @@ var host = Host.CreateDefaultBuilder(args)
                 {
                     logger.LogInformation("🏥 Health check от {RemoteIpAddress}", context.Connection.RemoteIpAddress);
                     context.Response.ContentType = "application/json";
-                    await context.Response.WriteAsync("{\"status\":\"healthy\",\"timestamp\":\"" + DateTime.UtcNow.ToString("O") + "\"}");
+                    var healthResponse = "{\"status\":\"healthy\",\"timestamp\":\"" + DateTime.UtcNow.ToString("O") + "\"}";
+                    await context.Response.WriteAsync(healthResponse);
+                    logger.LogInformation("🏥 Health check отправлен");
                 });
                 
-                // Корневой эндпоинт
+                // Корневой эндпоинт - перенаправляем на дашборд
                 endpoints.MapGet("/", async context =>
                 {
                     logger.LogInformation("🏠 Главная страница от {RemoteIpAddress}", context.Connection.RemoteIpAddress);
-                    context.Response.ContentType = "text/html";
-                    await context.Response.WriteAsync(@"
-                        <html>
-                        <head><title>TradingBot Metrics</title></head>
-                        <body>
-                            <h1>TradingBot Metrics & Health</h1>
-                            <ul>
-                                <li><a href='/metrics'>Prometheus Metrics</a></li>
-                                <li><a href='/health'>Health Check</a></li>
-                            </ul>
-                        </body>
-                        </html>");
+                    context.Response.Redirect("/index.html");
                 });
             });
+            
+            logger.LogInformation("🌐 Веб-сервер настроен и запущен на http://localhost:5000");
         });
     })
     .ConfigureAppConfiguration((context, config) =>
@@ -146,6 +149,18 @@ var host = Host.CreateDefaultBuilder(args)
         
         // Сервис сбора системных метрик
         services.AddHostedService<SystemMetricsCollector>();
+        services.AddHostedService<MetricsUpdateService>();
+        
+        // Новые сервисы мониторинга и уведомлений
+        services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IPerformanceMetricsService, PerformanceMetricsService>();
+        services.AddScoped<IAdvancedMonitoringService, AdvancedMonitoringService>();
+        
+        // Конфигурация новых сервисов
+        services.Configure<NotificationSettings>(
+            config.GetSection("NotificationSettings"));
+        services.Configure<MonitoringSettings>(
+            config.GetSection("MonitoringSettings"));
         
         // Добавляем health checks
         services.AddHealthChecks()
@@ -184,6 +199,7 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddHostedService<BotService>();
         services.AddHostedService<ReportService>();
+        services.AddHostedService<AdvancedMonitoringService>();
     })
     .ConfigureLogging(logging =>
     {

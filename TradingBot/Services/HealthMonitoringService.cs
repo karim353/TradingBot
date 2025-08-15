@@ -52,7 +52,7 @@ public class HealthMonitoringService : IHealthMonitoringService, IHostedService
         var healthInfo = new SystemHealthInfo
         {
             Timestamp = DateTime.UtcNow,
-            Components = new List<ComponentHealth>(),
+            Components = new List<Interfaces.ComponentHealth>(),
             Metrics = new Dictionary<string, object>(),
             Warnings = new List<string>(),
             Errors = new List<string>()
@@ -116,7 +116,7 @@ public class HealthMonitoringService : IHealthMonitoringService, IHostedService
         }
     }
 
-    private async Task<ComponentHealth> CheckDatabaseHealthAsync()
+    private async Task<Interfaces.ComponentHealth> CheckDatabaseHealthAsync()
     {
         var stopwatch = Stopwatch.StartNew();
         try
@@ -130,7 +130,7 @@ public class HealthMonitoringService : IHealthMonitoringService, IHostedService
                 // Записываем метрики в Prometheus
                 _metricsService.RecordDatabaseResponseTime(stopwatch.Elapsed);
                 
-                return new ComponentHealth
+                return new Interfaces.ComponentHealth
                 {
                     Name = "Database",
                     Status = SystemHealthStatus.Healthy,
@@ -144,7 +144,7 @@ public class HealthMonitoringService : IHealthMonitoringService, IHostedService
                 // Записываем ошибку в метрики
                 _metricsService.IncrementErrorCounter("database");
                 
-                return new ComponentHealth
+                return new Interfaces.ComponentHealth
                 {
                     Name = "Database",
                     Status = SystemHealthStatus.Unhealthy,
@@ -158,7 +158,7 @@ public class HealthMonitoringService : IHealthMonitoringService, IHostedService
         {
             stopwatch.Stop();
             _logger.LogError(ex, "Ошибка при проверке здоровья базы данных");
-            return new ComponentHealth
+            return new Interfaces.ComponentHealth
             {
                 Name = "Database",
                 Status = SystemHealthStatus.Unhealthy,

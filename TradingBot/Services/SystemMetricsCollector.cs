@@ -13,7 +13,7 @@ public class SystemMetricsCollector : IHostedService
     private readonly ILogger<SystemMetricsCollector> _logger;
     private readonly IMetricsService _metricsService;
     private readonly Timer? _metricsTimer;
-    private readonly TimeSpan _collectionInterval = TimeSpan.FromMinutes(1);
+    private readonly TimeSpan _collectionInterval = TimeSpan.FromSeconds(15); // Обновляем каждые 15 секунд
     
     private bool _isCollecting = false;
 
@@ -38,7 +38,7 @@ public class SystemMetricsCollector : IHostedService
         _isCollecting = true;
         
         // Запускаем сбор метрик с задержкой
-        _metricsTimer?.Change(TimeSpan.FromSeconds(30), _collectionInterval);
+        _metricsTimer?.Change(TimeSpan.FromSeconds(15), _collectionInterval);
         
         return Task.CompletedTask;
     }
