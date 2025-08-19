@@ -15,7 +15,7 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Caching.Memory;
+
 using System.Text;
 using SkiaSharp;
 
@@ -50,7 +50,7 @@ namespace TradingBot.Services
         private readonly PnLService _pnlService;
         private readonly UIManager _uiManager;
         private readonly ILogger<UpdateHandler> _logger;
-        private readonly IMemoryCache _cache;
+        private readonly ICacheService _cache;
         private readonly ValidationService _validationService;
         private readonly RateLimitingService _rateLimitingService;
         private readonly TradingBot.Services.Interfaces.IMetricsService _metricsService;
@@ -70,7 +70,7 @@ namespace TradingBot.Services
             PnLService pnlService,
             UIManager uiManager,
             ILogger<UpdateHandler> logger,
-            IMemoryCache cache,
+            ICacheService cache,
             ValidationService validationService,
             RateLimitingService rateLimitingService,
             TradingBot.Services.Interfaces.IMetricsService metricsService,
@@ -201,7 +201,7 @@ namespace TradingBot.Services
 
         private async Task SaveUserStateAsync(long userId, UserState state)
         {
-            _cache.Set($"state_{userId}", state, TimeSpan.FromMinutes(30));
+            await _cache.SetAsync($"state_{userId}", state, TimeSpan.FromMinutes(30));
             using var connection = new SqliteConnection(_sqliteConnectionString);
             await connection.OpenAsync();
             var command = connection.CreateCommand();
@@ -216,7 +216,8 @@ namespace TradingBot.Services
 
         private async Task<UserState?> GetUserStateAsync(long userId)
         {
-            if (_cache.TryGetValue($"state_{userId}", out UserState? cachedState) && cachedState != null)
+            var cachedState = await _cache.GetAsync<UserState>($"state_{userId}");
+            if (cachedState != null)
             {
                 return cachedState;
             }
@@ -238,7 +239,7 @@ namespace TradingBot.Services
                     var state = JsonSerializer.Deserialize<UserState>(stateJson);
                     if (state != null)
                     {
-                        _cache.Set($"state_{userId}", state, TimeSpan.FromMinutes(30));
+                        await _cache.SetAsync($"state_{userId}", state, TimeSpan.FromMinutes(30));
                         return state;
                     }
                 }
@@ -253,7 +254,7 @@ namespace TradingBot.Services
 
         private async Task DeleteUserStateAsync(long userId)
         {
-            _cache.Remove($"state_{userId}");
+            await _cache.RemoveAsync($"state_{userId}");
             using var connection = new SqliteConnection(_sqliteConnectionString);
             await connection.OpenAsync();
             var command = connection.CreateCommand();
@@ -268,7 +269,7 @@ namespace TradingBot.Services
 
         private async Task SaveUserSettingsAsync(long userId, UserSettings settings)
         {
-            _cache.Set($"settings_{userId}", settings, TimeSpan.FromMinutes(30));
+            await _cache.SetAsync($"settings_{userId}", settings, TimeSpan.FromMinutes(30));
             using var connection = new SqliteConnection(_sqliteConnectionString);
             await connection.OpenAsync();
             var command = connection.CreateCommand();
@@ -283,7 +284,8 @@ namespace TradingBot.Services
 
         private async Task<UserSettings> GetUserSettingsAsync(long userId)
         {
-            if (_cache.TryGetValue($"settings_{userId}", out UserSettings? cachedSettings) && cachedSettings != null)
+            var cachedSettings = await _cache.GetAsync<UserSettings>($"settings_{userId}");
+            if (cachedSettings != null)
             {
                 return cachedSettings;
             }
@@ -305,7 +307,7 @@ namespace TradingBot.Services
                     var settings = JsonSerializer.Deserialize<UserSettings>(settingsJson);
                     if (settings != null)
                     {
-                        _cache.Set($"settings_{userId}", settings, TimeSpan.FromMinutes(30));
+                        await _cache.SetAsync($"settings_{userId}", settings, TimeSpan.FromMinutes(30));
                         return settings;
                     }
                 }
@@ -316,7 +318,7 @@ namespace TradingBot.Services
             }
 
             var newSettings = new UserSettings();
-            _cache.Set($"settings_{userId}", newSettings, TimeSpan.FromMinutes(30));
+            await _cache.SetAsync($"settings_{userId}", newSettings, TimeSpan.FromMinutes(30));
             using var insertConn = new SqliteConnection(_sqliteConnectionString);
             await insertConn.OpenAsync();
             var insertCmd = insertConn.CreateCommand();
@@ -778,13 +780,14 @@ namespace TradingBot.Services
 
                     // Лимит частоты запросов
                     string rlKey = $"rate_limit_{userId}";
-                    if (_cache.TryGetValue(rlKey, out int req) && req >= MaxRequestsPerMinute)
+                    var req = await _cache.GetAsync<int>(rlKey);
+            if (req >= MaxRequestsPerMinute)
                     {
                         await bot.SendMessage(chatId, _uiManager.GetText("rate_limit", settings.Language),
                             cancellationToken: cancellationToken);
                         return;
                     }
-                    _cache.Set(rlKey, (req > 0 ? req : 0) + 1, TimeSpan.FromMinutes(1));
+                    await _cache.SetAsync(rlKey, (req > 0 ? req : 0) + 1, TimeSpan.FromMinutes(1));
 
                     if (text == "/me")
                     {
@@ -858,7 +861,7 @@ namespace TradingBot.Services
 
                     if (text == "/start")
                     {
-                        if (_cache.TryGetValue($"seen_tutorial_{userId}", out bool _))
+                        if (await _cache.ExistsAsync($"seen_tutorial_{userId}"))
                         {
                             await DeleteUserStateAsync(userId);
 
@@ -896,7 +899,7 @@ namespace TradingBot.Services
                         var sentMessage = await bot.SendMessage(chatId, welcomeText, replyMarkup: onboardingKeyboard, cancellationToken: CancellationToken.None);
                         st.MessageId = sentMessage.MessageId;
                         await SaveUserStateAsync(userId, st);
-                        _cache.Set($"seen_tutorial_{userId}", true, TimeSpan.FromDays(30));
+                        await _cache.SetAsync($"seen_tutorial_{userId}", true, TimeSpan.FromMinutes(30));
                         return;
                     }
 
@@ -2513,7 +2516,7 @@ namespace TradingBot.Services
             // Шэрим последние настройки в IMemoryCache для приоритезации опций в NotionTradeStorage
             try
             {
-                _cache.Set("last_user_settings", new NotionTradeStorage.ModelUserSettingsProxy(settings), TimeSpan.FromMinutes(10));
+                await _cache.SetAsync("last_user_settings", new NotionTradeStorage.ModelUserSettingsProxy(settings), TimeSpan.FromMinutes(10));
             }
             catch { /* ignore cross-type visibility in case of DI differences */ }
         }

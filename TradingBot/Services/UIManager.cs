@@ -221,7 +221,92 @@ namespace TradingBot.Services
                 ["history_filters"] = "🔍 Фильтры истории:",
                 ["history_page"] = "Страница {0} из {1}",
                 ["export"] = "💾 Экспорт в CSV",
-                ["validation_error"] = "⚠️ Ошибка валидации сделки:"
+                ["validation_error"] = "⚠️ Ошибка валидации сделки:",
+                
+                // Кнопки и элементы интерфейса
+                ["main_menu_button"] = "🏠 Главное меню",
+                ["add_trade"] = "➕ Добавить сделку",
+                ["my_stats"] = "📈 Моя статистика",
+                ["trade_history"] = "📜 История сделок",
+                ["settings"] = "⚙️ Настройки",
+                ["help"] = "🆘 Помощь",
+                ["next"] = "Далее ▶",
+                ["start"] = "🚀 Начать!",
+                ["back"] = "◀ Назад",
+                ["skip_tutorial"] = "⏭️ Пропустить обучение",
+                ["other"] = "Другое",
+                ["input_manually"] = "✏️ Ввести вручную",
+                ["prefill_last"] = "🔄 Использовать последнюю",
+                ["skip"] = "⏭️ Пропустить",
+                ["cancel"] = "❌ Отмена",
+                ["save"] = "✅ Сохранить",
+                ["confirm"] = "✅ Подтвердить",
+                ["edit"] = "✏️ Редактировать",
+                ["delete"] = "🗑️ Удалить",
+                ["edit_ticker"] = "📌 Тикер",
+                ["edit_account"] = "🧾 Аккаунт",
+                ["edit_session"] = "🕒 Сессия",
+                ["edit_position"] = "📐 Позиция",
+                ["edit_direction"] = "↕️ Направление",
+                ["edit_context"] = "🧩 Контекст",
+                ["edit_setup"] = "🧠 Сетап",
+                ["edit_result"] = "🎯 Результат",
+                ["edit_rr"] = "⚖️ R:R",
+                ["edit_risk"] = "⚠️ Риск %",
+                ["edit_profit"] = "📈 Прибыль %",
+                ["edit_emotions"] = "😃 Эмоции",
+                ["edit_entry"] = "🔍 Детали входа",
+                ["edit_note"] = "📝 Заметка",
+                ["language"] = "🌐 Язык",
+                ["notifications"] = "🔔 Уведомления",
+                ["favorite_tickers"] = "⭐ Избранные тикеры",
+                ["notion_integration"] = "🌐 Интеграция с Notion",
+                ["reset_settings"] = "🔄 Сбросить настройки",
+                ["back_to_main"] = "🏠 Вернуться в главное меню",
+                ["stats_today"] = "📊 Статистика за сегодня",
+                ["stats_week"] = "📊 Статистика за неделю",
+                ["stats_month"] = "📊 Статистика за месяц",
+                ["stats_all_time"] = "📊 Общая статистика",
+                ["export_data"] = "📄 Экспорт данных",
+                ["clear_history"] = "🧹 Очистить историю",
+                ["about_bot"] = "ℹ️ О боте",
+                ["contact_support"] = "📞 Связаться с поддержкой",
+                ["version_info"] = "ℹ️ Версия",
+                ["changelog"] = "📝 История изменений",
+                ["more"] = "…Ещё",
+                ["filter_by_date"] = "📅 По дате",
+                ["filter_by_ticker"] = "📈 По тикеру",
+                ["filter_by_direction"] = "↕ По направлению",
+                ["filter_by_result"] = "✅/❌ По результату",
+                
+                // Локализация для превью сделок
+                ["preview_ticker"] = "📌 Тикер",
+                ["preview_account"] = "🧾 Аккаунт",
+                ["preview_session"] = "🕒 Сессия",
+                ["preview_position"] = "📐 Позиция",
+                ["preview_direction"] = "↕️ Направление",
+                ["preview_context"] = "🧩 Контекст",
+                ["preview_setup"] = "🧠 Сетап",
+                ["preview_result"] = "🎯 Результат",
+                ["preview_rr"] = "⚖️ R:R",
+                ["preview_risk"] = "⚠️ Риск",
+                ["preview_profit"] = "📈 Прибыль",
+                ["preview_emotions"] = "😃 Эмоции",
+                ["preview_entry_details"] = "🔍 Детали входа",
+                ["preview_note"] = "📝 Заметка",
+                ["preview_empty_value"] = "-",
+                
+                // Локализация для фильтров истории
+                ["history_filter_title"] = "🔍 Выберите фильтр для истории:",
+                ["history_filter_period"] = "Текущий период",
+                ["history_filter_all_tickers"] = "Все тикеры",
+                ["history_filter_pnl_gt_1"] = ">1%",
+                ["history_filter_pnl_lt_minus_1"] = "<-1%",
+                ["history_filter_direction_long"] = "Long",
+                ["history_filter_direction_short"] = "Short",
+                ["history_filter_clear_active"] = "🧹 Очистить активные",
+                ["history_filter_ticker_label"] = "Тикер",
+                ["history_filter_pnl_label"] = "PnL"
             },
             // Английские тексты (можно аналогично заполнить или оставить пустыми для примера)
             ["en"] = new Dictionary<string, string>
@@ -296,6 +381,40 @@ namespace TradingBot.Services
                 ["history_filters"] = "🔍 History filters:",
                 ["history_page"] = "Page {0} of {1}",
                 ["export"] = "💾 Export to CSV",
+                ["more"] = "…More",
+                ["filter_by_date"] = "📅 By date",
+                ["filter_by_ticker"] = "📈 By ticker",
+                ["filter_by_direction"] = "↕ By direction",
+                ["filter_by_result"] = "✅/❌ By result",
+                
+                // Localization for trade previews
+                ["preview_ticker"] = "📌 Ticker",
+                ["preview_account"] = "🧾 Account",
+                ["preview_session"] = "🕒 Session",
+                ["preview_position"] = "📐 Position",
+                ["preview_direction"] = "↕️ Direction",
+                ["preview_context"] = "🧩 Context",
+                ["preview_setup"] = "🧠 Setup",
+                ["preview_result"] = "🎯 Result",
+                ["preview_rr"] = "⚖️ R:R",
+                ["preview_risk"] = "⚠️ Risk",
+                ["preview_profit"] = "📈 Profit",
+                ["preview_emotions"] = "😃 Emotions",
+                ["preview_entry_details"] = "🔍 Entry Details",
+                ["preview_note"] = "📝 Note",
+                ["preview_empty_value"] = "-",
+                
+                // Localization for history filters
+                ["history_filter_title"] = "🔍 Select history filter:",
+                ["history_filter_period"] = "Current period",
+                ["history_filter_all_tickers"] = "All tickers",
+                ["history_filter_pnl_gt_1"] = ">1%",
+                ["history_filter_pnl_lt_minus_1"] = "<-1%",
+                ["history_filter_direction_long"] = "Long",
+                ["history_filter_direction_short"] = "Short",
+                ["history_filter_clear_active"] = "🧹 Clear active",
+                ["history_filter_ticker_label"] = "Ticker",
+                ["history_filter_pnl_label"] = "PnL",
                 
                 // Тексты шагов для английского языка
                 ["step_1"] = "🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜ Step 1/14: Select ticker",
@@ -368,7 +487,58 @@ namespace TradingBot.Services
                 ["error_getting_image"] = "❌ Error getting image.",
                 ["error_processing_image"] = "❌ Error processing image.",
                 ["rate_limit"] = "⏳ Too many requests. Wait a minute.",
-                ["notion_settings_saved"] = "✅ Notion settings saved"
+                ["notion_settings_saved"] = "✅ Notion settings saved",
+                
+                // Buttons and UI elements
+                ["main_menu_button"] = "🏠 Main Menu",
+                ["add_trade"] = "➕ Add Trade",
+                ["my_stats"] = "📈 My Statistics",
+                ["trade_history"] = "📜 Trade History",
+                ["settings"] = "⚙️ Settings",
+                ["help"] = "🆘 Help",
+                ["next"] = "Next ▶",
+                ["start"] = "🚀 Start!",
+                ["back"] = "◀ Back",
+                ["skip_tutorial"] = "⏭️ Skip Tutorial",
+                ["other"] = "Other",
+                ["input_manually"] = "✏️ Enter Manually",
+                ["prefill_last"] = "🔄 Use Last",
+                ["skip"] = "⏭️ Skip",
+                ["cancel"] = "❌ Cancel",
+                ["save"] = "✅ Save",
+                ["confirm"] = "✅ Confirm",
+                ["edit"] = "✏️ Edit",
+                ["delete"] = "🗑️ Delete",
+                ["edit_ticker"] = "📌 Ticker",
+                ["edit_account"] = "🧾 Account",
+                ["edit_session"] = "🕒 Session",
+                ["edit_position"] = "📐 Position",
+                ["edit_direction"] = "↕️ Direction",
+                ["edit_context"] = "🧩 Context",
+                ["edit_setup"] = "🧠 Setup",
+                ["edit_result"] = "🎯 Result",
+                ["edit_rr"] = "⚖️ R:R",
+                ["edit_risk"] = "⚠️ Risk %",
+                ["edit_profit"] = "📈 Profit %",
+                ["edit_emotions"] = "😃 Emotions",
+                ["edit_entry"] = "🔍 Entry Details",
+                ["edit_note"] = "📝 Note",
+                ["language"] = "🌐 Language",
+                ["notifications"] = "🔔 Notifications",
+                ["favorite_tickers"] = "⭐ Favorite Tickers",
+                ["notion_integration"] = "🌐 Notion Integration",
+                ["reset_settings"] = "🔄 Reset Settings",
+                ["back_to_main"] = "🏠 Back to Main",
+                ["stats_today"] = "📊 Today's Stats",
+                ["stats_week"] = "📊 Week's Stats",
+                ["stats_month"] = "📊 Month's Stats",
+                ["stats_all_time"] = "📊 All Time Stats",
+                ["export_data"] = "📄 Export Data",
+                ["clear_history"] = "🧹 Clear History",
+                ["about_bot"] = "ℹ️ About Bot",
+                ["contact_support"] = "📞 Contact Support",
+                ["version_info"] = "ℹ️ Version",
+                ["changelog"] = "📝 Changelog"
             }
         };
 
@@ -410,15 +580,15 @@ namespace TradingBot.Services
             {
                 new[]
                 {
-                    InlineKeyboardButton.WithCallbackData("➕ Добавить сделку", "start_trade"),
-                    InlineKeyboardButton.WithCallbackData("📈 Моя статистика", "stats")
+                    InlineKeyboardButton.WithCallbackData(GetText("add_trade", settings.Language), "start_trade"),
+                    InlineKeyboardButton.WithCallbackData(GetText("my_stats", settings.Language), "stats")
                 },
                 new[]
                 {
-                    InlineKeyboardButton.WithCallbackData("📜 История сделок", "history"),
-                    InlineKeyboardButton.WithCallbackData("⚙️ Настройки", "settings")
+                    InlineKeyboardButton.WithCallbackData(GetText("trade_history", settings.Language), "history"),
+                    InlineKeyboardButton.WithCallbackData(GetText("settings", settings.Language), "settings")
                 },
-                new[] { InlineKeyboardButton.WithCallbackData("🆘 Помощь", "help") }
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("help", settings.Language), "help") }
             };
             return new InlineKeyboardMarkup(buttons);
         }
@@ -449,45 +619,45 @@ namespace TradingBot.Services
             
             if (step < 3)
             {
-                buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("Далее ▶", $"onboarding_{step + 1}") });
+                buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("next", language), $"onboarding_{step + 1}") });
             }
             else
             {
-                buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("🚀 Начать!", "main") });
+                buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("start", language), "main") });
             }
 
             if (step > 1)
             {
-                buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("◀ Назад", $"onboarding_{step - 1}") });
+                buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("back", language), $"onboarding_{step - 1}") });
             }
 
             // Добавляем кнопку "Пропустить обучение" на всех экранах
-            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("⏭️ Пропустить обучение", "main") });
+            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("skip_tutorial", language), "main") });
 
             return (text, new InlineKeyboardMarkup(buttons));
         }
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetTradeInputScreen(Trade trade, int step, UserSettings settings, string tradeId, Trade? lastTrade = null)
         {
-            // Переписанный превью с эмодзи в значениях
-            var ctx = (trade.Context != null && trade.Context.Any()) ? string.Join(", ", trade.Context) : "-";
-            var setup = (trade.Setup != null && trade.Setup.Any()) ? string.Join(", ", trade.Setup) : "-";
-            var emos = (trade.Emotions != null && trade.Emotions.Any()) ? string.Join(", ", trade.Emotions) : "-";
+            // Переписанный превью с эмодзи в значениях и локализацией
+            var ctx = (trade.Context != null && trade.Context.Any()) ? string.Join(", ", trade.Context) : GetText("preview_empty_value", settings.Language);
+            var setup = (trade.Setup != null && trade.Setup.Any()) ? string.Join(", ", trade.Setup) : GetText("preview_empty_value", settings.Language);
+            var emos = (trade.Emotions != null && trade.Emotions.Any()) ? string.Join(", ", trade.Emotions) : GetText("preview_empty_value", settings.Language);
             string formattedPreview =
-                "📌 Тикер: " + (string.IsNullOrWhiteSpace(trade.Ticker) ? "-" : trade.Ticker) + "\n" +
-                "🧾 Аккаунт: " + (string.IsNullOrWhiteSpace(trade.Account) ? "-" : trade.Account) + "\n" +
-                "🕒 Сессия: " + (string.IsNullOrWhiteSpace(trade.Session) ? "-" : trade.Session) + "\n" +
-                "📐 Позиция: " + (string.IsNullOrWhiteSpace(trade.Position) ? "-" : trade.Position) + "\n" +
-                "↕️ Направление: " + (string.IsNullOrWhiteSpace(trade.Direction) ? "-" : trade.Direction) + "\n" +
-                "🧩 Контекст: " + ctx + "\n" +
-                "🧠 Сетап: " + setup + "\n" +
-                "🎯 Результат: " + (string.IsNullOrWhiteSpace(trade.Result) ? "-" : trade.Result) + "\n" +
-                "⚖️ R:R = " + (string.IsNullOrWhiteSpace(trade.RR) ? "-" : trade.RR) + "\n" +
-                "⚠️ Риск: " + (trade.Risk?.ToString("0.##") ?? "-") + "%\n" +
-                "📈 Прибыль: " + trade.PnL.ToString("0.##") + "%\n" +
-                "😃 Эмоции: " + emos + "\n" +
-                "🔍 Детали входа: " + (string.IsNullOrWhiteSpace(trade.EntryDetails) ? "-" : trade.EntryDetails) + "\n" +
-                "📝 Заметка: " + (string.IsNullOrWhiteSpace(trade.Note) ? "-" : trade.Note);
+                GetText("preview_ticker", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Ticker) ? GetText("preview_empty_value", settings.Language) : trade.Ticker) + "\n" +
+                GetText("preview_account", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Account) ? GetText("preview_empty_value", settings.Language) : trade.Account) + "\n" +
+                GetText("preview_session", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Session) ? GetText("preview_empty_value", settings.Language) : trade.Session) + "\n" +
+                GetText("preview_position", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Position) ? GetText("preview_empty_value", settings.Language) : trade.Position) + "\n" +
+                GetText("preview_direction", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Direction) ? GetText("preview_empty_value", settings.Language) : trade.Direction) + "\n" +
+                GetText("preview_context", settings.Language) + ": " + ctx + "\n" +
+                GetText("preview_setup", settings.Language) + ": " + setup + "\n" +
+                GetText("preview_result", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Result) ? GetText("preview_empty_value", settings.Language) : trade.Result) + "\n" +
+                GetText("preview_rr", settings.Language) + " = " + (string.IsNullOrWhiteSpace(trade.RR) ? GetText("preview_empty_value", settings.Language) : trade.RR) + "\n" +
+                GetText("preview_risk", settings.Language) + ": " + (trade.Risk?.ToString("0.##") ?? GetText("preview_empty_value", settings.Language)) + "%\n" +
+                GetText("preview_profit", settings.Language) + ": " + trade.PnL.ToString("0.##") + "%\n" +
+                GetText("preview_emotions", settings.Language) + ": " + emos + "\n" +
+                GetText("preview_entry_details", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.EntryDetails) ? GetText("preview_empty_value", settings.Language) : trade.EntryDetails) + "\n" +
+                GetText("preview_note", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Note) ? GetText("preview_empty_value", settings.Language) : trade.Note);
 
             // Безопасное получение текста шага с fallback на русский язык
             string prompt;
@@ -702,13 +872,13 @@ namespace TradingBot.Services
             // Добавляем общие кнопки навигации
             if (step > 1 && step <= 14)
                 buttons.Add(new[] {
-                    InlineKeyboardButton.WithCallbackData("◀️ Назад", $"back_trade_{tradeId}_step_{step}"),
+                    InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), $"back_trade_{tradeId}_step_{step}"),
                     InlineKeyboardButton.WithCallbackData(GetText("skip", settings.Language), $"skip_trade_{tradeId}_step_{step}")
                 });
 
             buttons.Add(new[] {
                 InlineKeyboardButton.WithCallbackData(GetText("cancel", settings.Language), "cancel"),
-                InlineKeyboardButton.WithCallbackData("✅ Сохранить", $"save_trade_{tradeId}")
+                InlineKeyboardButton.WithCallbackData(GetText("save", settings.Language), $"save_trade_{tradeId}")
             });
 
             return ($"{formattedPreview}\n\n{prompt}", new InlineKeyboardMarkup(buttons));
@@ -717,20 +887,20 @@ namespace TradingBot.Services
         public (string Text, InlineKeyboardMarkup Keyboard) GetTradeConfirmationScreen(Trade trade, string tradeId, UserSettings settings)
         {
             string text =
-                "📌 Тикер: " + (string.IsNullOrWhiteSpace(trade.Ticker) ? "-" : trade.Ticker) + "\n" +
-                "🧾 Аккаунт: " + (string.IsNullOrWhiteSpace(trade.Account) ? "-" : trade.Account) + "\n" +
-                "🕒 Сессия: " + (string.IsNullOrWhiteSpace(trade.Session) ? "-" : trade.Session) + "\n" +
-                "📐 Позиция: " + (string.IsNullOrWhiteSpace(trade.Position) ? "-" : trade.Position) + "\n" +
-                "↕️ Направление: " + (string.IsNullOrWhiteSpace(trade.Direction) ? "-" : trade.Direction) + "\n" +
-                "🧩 Контекст: " + ((trade.Context != null && trade.Context.Any()) ? string.Join(", ", trade.Context) : "-") + "\n" +
-                "🧠 Сетап: " + ((trade.Setup != null && trade.Setup.Any()) ? string.Join(", ", trade.Setup) : "-") + "\n" +
-                "🎯 Результат: " + (string.IsNullOrWhiteSpace(trade.Result) ? "-" : trade.Result) + "\n" +
-                "⚖️ R:R = " + (string.IsNullOrWhiteSpace(trade.RR) ? "-" : trade.RR) + "\n" +
-                "⚠️ Риск: " + (trade.Risk?.ToString("0.##") ?? "-") + "%\n" +
-                "📈 Прибыль: " + trade.PnL.ToString("0.##") + "%\n" +
-                "😃 Эмоции: " + ((trade.Emotions != null && trade.Emotions.Any()) ? string.Join(", ", trade.Emotions) : "-") + "\n" +
-                "🔍 Детали входа: " + (string.IsNullOrWhiteSpace(trade.EntryDetails) ? "-" : trade.EntryDetails) + "\n" +
-                "📝 Заметка: " + (string.IsNullOrWhiteSpace(trade.Note) ? "-" : trade.Note);
+                GetText("preview_ticker", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Ticker) ? GetText("preview_empty_value", settings.Language) : trade.Ticker) + "\n" +
+                GetText("preview_account", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Account) ? GetText("preview_empty_value", settings.Language) : trade.Account) + "\n" +
+                GetText("preview_session", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Session) ? GetText("preview_empty_value", settings.Language) : trade.Session) + "\n" +
+                GetText("preview_position", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Position) ? GetText("preview_empty_value", settings.Language) : trade.Position) + "\n" +
+                GetText("preview_direction", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Direction) ? GetText("preview_empty_value", settings.Language) : trade.Direction) + "\n" +
+                GetText("preview_context", settings.Language) + ": " + ((trade.Context != null && trade.Context.Any()) ? string.Join(", ", trade.Context) : GetText("preview_empty_value", settings.Language)) + "\n" +
+                GetText("preview_setup", settings.Language) + ": " + ((trade.Setup != null && trade.Setup.Any()) ? string.Join(", ", trade.Setup) : GetText("preview_empty_value", settings.Language)) + "\n" +
+                GetText("preview_result", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Result) ? GetText("preview_empty_value", settings.Language) : trade.Result) + "\n" +
+                GetText("preview_rr", settings.Language) + " = " + (string.IsNullOrWhiteSpace(trade.RR) ? GetText("preview_empty_value", settings.Language) : trade.RR) + "\n" +
+                GetText("preview_risk", settings.Language) + ": " + (trade.Risk?.ToString("0.##") ?? GetText("preview_empty_value", settings.Language)) + "%\n" +
+                GetText("preview_profit", settings.Language) + ": " + trade.PnL.ToString("0.##") + "%\n" +
+                GetText("preview_emotions", settings.Language) + ": " + ((trade.Emotions != null && trade.Emotions.Any()) ? string.Join(", ", trade.Emotions) : GetText("preview_empty_value", settings.Language)) + "\n" +
+                GetText("preview_entry_details", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.EntryDetails) ? GetText("preview_empty_value", settings.Language) : trade.EntryDetails) + "\n" +
+                GetText("preview_note", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Note) ? GetText("preview_empty_value", settings.Language) : trade.Note);
 
             var keyboard = new InlineKeyboardMarkup(new[]
             {
@@ -745,38 +915,38 @@ namespace TradingBot.Services
         public (string Text, InlineKeyboardMarkup Keyboard) GetEditFieldMenu(Trade trade, string tradeId, UserSettings settings)
         {
             string preview =
-                "📌 Тикер: " + (string.IsNullOrWhiteSpace(trade.Ticker) ? "-" : trade.Ticker) + "\n" +
-                "🧾 Аккаунт: " + (string.IsNullOrWhiteSpace(trade.Account) ? "-" : trade.Account) + "\n" +
-                "🕒 Сессия: " + (string.IsNullOrWhiteSpace(trade.Session) ? "-" : trade.Session) + "\n" +
-                "📐 Позиция: " + (string.IsNullOrWhiteSpace(trade.Position) ? "-" : trade.Position) + "\n" +
-                "↕️ Направление: " + (string.IsNullOrWhiteSpace(trade.Direction) ? "-" : trade.Direction) + "\n" +
-                "🧩 Контекст: " + ((trade.Context != null && trade.Context.Any()) ? string.Join(", ", trade.Context) : "-") + "\n" +
-                "🧠 Сетап: " + ((trade.Setup != null && trade.Setup.Any()) ? string.Join(", ", trade.Setup) : "-") + "\n" +
-                "🎯 Результат: " + (string.IsNullOrWhiteSpace(trade.Result) ? "-" : trade.Result) + "\n" +
-                "⚖️ R:R = " + (string.IsNullOrWhiteSpace(trade.RR) ? "-" : trade.RR) + "\n" +
-                "⚠️ Риск: " + (trade.Risk?.ToString("0.##") ?? "-") + "%\n" +
-                "📈 Прибыль: " + trade.PnL.ToString("0.##") + "%\n" +
-                "😃 Эмоции: " + ((trade.Emotions != null && trade.Emotions.Any()) ? string.Join(", ", trade.Emotions) : "-") + "\n" +
-                "🔍 Детали входа: " + (string.IsNullOrWhiteSpace(trade.EntryDetails) ? "-" : trade.EntryDetails) + "\n" +
-                "📝 Заметка: " + (string.IsNullOrWhiteSpace(trade.Note) ? "-" : trade.Note);
+                GetText("preview_ticker", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Ticker) ? GetText("preview_empty_value", settings.Language) : trade.Ticker) + "\n" +
+                GetText("preview_account", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Account) ? GetText("preview_empty_value", settings.Language) : trade.Account) + "\n" +
+                GetText("preview_session", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Session) ? GetText("preview_empty_value", settings.Language) : trade.Session) + "\n" +
+                GetText("preview_position", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Position) ? GetText("preview_empty_value", settings.Language) : trade.Position) + "\n" +
+                GetText("preview_direction", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Direction) ? GetText("preview_empty_value", settings.Language) : trade.Direction) + "\n" +
+                GetText("preview_context", settings.Language) + ": " + ((trade.Context != null && trade.Context.Any()) ? string.Join(", ", trade.Context) : GetText("preview_empty_value", settings.Language)) + "\n" +
+                GetText("preview_setup", settings.Language) + ": " + ((trade.Setup != null && trade.Setup.Any()) ? string.Join(", ", trade.Setup) : GetText("preview_empty_value", settings.Language)) + "\n" +
+                GetText("preview_result", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Result) ? GetText("preview_empty_value", settings.Language) : trade.Result) + "\n" +
+                GetText("preview_rr", settings.Language) + " = " + (string.IsNullOrWhiteSpace(trade.RR) ? GetText("preview_empty_value", settings.Language) : trade.RR) + "\n" +
+                GetText("preview_risk", settings.Language) + ": " + (trade.Risk?.ToString("0.##") ?? GetText("preview_empty_value", settings.Language)) + "%\n" +
+                GetText("preview_profit", settings.Language) + ": " + trade.PnL.ToString("0.##") + "%\n" +
+                GetText("preview_emotions", settings.Language) + ": " + ((trade.Emotions != null && trade.Emotions.Any()) ? string.Join(", ", trade.Emotions) : GetText("preview_empty_value", settings.Language)) + "\n" +
+                GetText("preview_entry_details", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.EntryDetails) ? GetText("preview_empty_value", settings.Language) : trade.EntryDetails) + "\n" +
+                GetText("preview_note", settings.Language) + ": " + (string.IsNullOrWhiteSpace(trade.Note) ? GetText("preview_empty_value", settings.Language) : trade.Note);
 
             // Готовим плоский список кнопок с эмодзи
             var flat = new List<InlineKeyboardButton>
             {
-                InlineKeyboardButton.WithCallbackData("📌 Тикер", $"editfield_ticker_trade_{tradeId}"),
-                InlineKeyboardButton.WithCallbackData("🧾 Аккаунт", $"editfield_account_trade_{tradeId}"),
-                InlineKeyboardButton.WithCallbackData("🕒 Сессия", $"editfield_session_trade_{tradeId}"),
-                InlineKeyboardButton.WithCallbackData("📐 Позиция", $"editfield_position_trade_{tradeId}"),
-                InlineKeyboardButton.WithCallbackData("↕️ Направление", $"editfield_direction_trade_{tradeId}"),
-                InlineKeyboardButton.WithCallbackData("🧩 Контекст", $"editfield_context_trade_{tradeId}"),
-                InlineKeyboardButton.WithCallbackData("🧠 Сетап", $"editfield_setup_trade_{tradeId}"),
-                InlineKeyboardButton.WithCallbackData("🎯 Результат", $"editfield_result_trade_{tradeId}"),
-                InlineKeyboardButton.WithCallbackData("⚖️ R:R", $"editfield_rr_trade_{tradeId}"),
-                InlineKeyboardButton.WithCallbackData("⚠️ Риск %", $"editfield_risk_trade_{tradeId}"),
-                InlineKeyboardButton.WithCallbackData("📈 Profit %", $"editfield_profit_trade_{tradeId}"),
-                InlineKeyboardButton.WithCallbackData("🙂 Эмоции", $"editfield_emotions_trade_{tradeId}"),
-                InlineKeyboardButton.WithCallbackData("🔍 Детали входа", $"editfield_entry_trade_{tradeId}"),
-                InlineKeyboardButton.WithCallbackData("📝 Заметка", $"editfield_note_trade_{tradeId}")
+                InlineKeyboardButton.WithCallbackData(GetText("edit_ticker", settings.Language), $"editfield_ticker_trade_{tradeId}"),
+                InlineKeyboardButton.WithCallbackData(GetText("edit_account", settings.Language), $"editfield_account_trade_{tradeId}"),
+                InlineKeyboardButton.WithCallbackData(GetText("edit_session", settings.Language), $"editfield_session_trade_{tradeId}"),
+                InlineKeyboardButton.WithCallbackData(GetText("edit_position", settings.Language), $"editfield_position_trade_{tradeId}"),
+                InlineKeyboardButton.WithCallbackData(GetText("edit_direction", settings.Language), $"editfield_direction_trade_{tradeId}"),
+                InlineKeyboardButton.WithCallbackData(GetText("edit_context", settings.Language), $"editfield_context_trade_{tradeId}"),
+                InlineKeyboardButton.WithCallbackData(GetText("edit_setup", settings.Language), $"editfield_setup_trade_{tradeId}"),
+                InlineKeyboardButton.WithCallbackData(GetText("edit_result", settings.Language), $"editfield_result_trade_{tradeId}"),
+                InlineKeyboardButton.WithCallbackData(GetText("edit_rr", settings.Language), $"editfield_rr_trade_{tradeId}"),
+                InlineKeyboardButton.WithCallbackData(GetText("edit_risk", settings.Language), $"editfield_risk_trade_{tradeId}"),
+                InlineKeyboardButton.WithCallbackData(GetText("edit_profit", settings.Language), $"editfield_profit_trade_{tradeId}"),
+                InlineKeyboardButton.WithCallbackData(GetText("edit_emotions", settings.Language), $"editfield_emotions_trade_{tradeId}"),
+                InlineKeyboardButton.WithCallbackData(GetText("edit_entry", settings.Language), $"editfield_entry_trade_{tradeId}"),
+                InlineKeyboardButton.WithCallbackData(GetText("edit_note", settings.Language), $"editfield_note_trade_{tradeId}")
             };
 
             // Складываем по 2 в ряд
@@ -805,19 +975,19 @@ namespace TradingBot.Services
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetHistoryFilterMenu(UserSettings settings, string period, string filter)
         {
-            string text = "🔍 Выберите фильтр для истории:\nТекущий период: " + GetText($"period_{period}", settings.Language);
+            string text = GetText("history_filter_title", settings.Language) + "\n" + GetText("history_filter_period", settings.Language) + ": " + GetText($"period_{period}", settings.Language);
             var buttons = new List<InlineKeyboardButton[]>
             {
-                new[] { InlineKeyboardButton.WithCallbackData("Все тикеры", "historyfilter_ticker_all") },
-                new[] { InlineKeyboardButton.WithCallbackData(">1%", "historyfilter_pnl_gt_1") },
-                new[] { InlineKeyboardButton.WithCallbackData("<-1%", "historyfilter_pnl_lt_-1") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("history_filter_all_tickers", settings.Language), "historyfilter_ticker_all") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("history_filter_pnl_gt_1", settings.Language), "historyfilter_pnl_gt_1") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("history_filter_pnl_lt_minus_1", settings.Language), "historyfilter_pnl_lt_-1") },
                 // Long/Short — по две в ряд
                 new[]
                 {
-                    InlineKeyboardButton.WithCallbackData("Long", "historyfilter_direction_Long"),
-                    InlineKeyboardButton.WithCallbackData("Short", "historyfilter_direction_Short")
+                    InlineKeyboardButton.WithCallbackData(GetText("history_filter_direction_long", settings.Language), "historyfilter_direction_Long"),
+                    InlineKeyboardButton.WithCallbackData(GetText("history_filter_direction_short", settings.Language), "historyfilter_direction_Short")
                 },
-                new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "history") }
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "history") }
             };
 
             return (text, new InlineKeyboardMarkup(buttons));
@@ -832,7 +1002,7 @@ namespace TradingBot.Services
                 : GetText("pending_trades", settings.Language,
                     string.Join("\n",
                         pendingTrades.Select(t =>
-                            $"Тикер: {t.Trade.Ticker}, PnL: {t.Trade.PnL}% ({t.CreatedAt:yyyy-MM-dd HH:mm})")));
+                            $"{GetText("history_filter_ticker_label", settings.Language)}: {t.Trade.Ticker}, {GetText("history_filter_pnl_label", settings.Language)}: {t.Trade.PnL}% ({t.CreatedAt:yyyy-MM-dd HH:mm})")));
 
             int pageSize = 5;
             int totalPages = (int)Math.Ceiling(total / (double)pageSize);
@@ -844,7 +1014,7 @@ namespace TradingBot.Services
                     buttons.Add(new[] { InlineKeyboardButton.WithCallbackData($"{trade.Ticker} ({trade.PnL}%)", $"edit_{tradeId}") });
                 buttons.Add(new[]
                 {
-                    InlineKeyboardButton.WithCallbackData("🧹 Очистить активные", "clearpending")
+                    InlineKeyboardButton.WithCallbackData(GetText("history_filter_clear_active", settings.Language), "clearpending")
                 });
             }
 
@@ -943,7 +1113,7 @@ namespace TradingBot.Services
             {
                 var pag = new List<InlineKeyboardButton>();
                 if (page > 1) pag.Add(InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), $"history_page_{page - 1}_period_{period}_filter_{filter ?? "none"}"));
-                if (page < totalPages) pag.Add(InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "…Ещё" : "…More", $"history_page_{page + 1}_period_{period}_filter_{filter ?? "none"}"));
+                if (page < totalPages) pag.Add(InlineKeyboardButton.WithCallbackData(GetText("more", settings.Language), $"history_page_{page + 1}_period_{period}_filter_{filter ?? "none"}"));
                 if (pag.Any()) buttons.Add(pag.ToArray());
 
                 buttons.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("history_filters", settings.Language), $"history_filter_menu") });
@@ -956,13 +1126,13 @@ namespace TradingBot.Services
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetHistoryFiltersMenu(UserSettings settings)
         {
-            string text = settings.Language == "ru" ? "🔍 Фильтры истории:\nВыберите категорию:" : "🔍 History filters:\nSelect category:";
+            string text = GetText("history_filters", settings.Language);
             var rows = new List<InlineKeyboardButton[]>
             {
-                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "📅 По дате" : "📅 By date", "historyfilter_date_menu") },
-                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "📈 По тикеру" : "📈 By ticker", "historyfilter_ticker_menu") },
-                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "↕ По направлению" : "↕ By direction", "historyfilter_direction_menu") },
-                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "✅/❌ По результату" : "✅/❌ By result", "historyfilter_result_menu") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("filter_by_date", settings.Language), "historyfilter_date_menu") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("filter_by_ticker", settings.Language), "historyfilter_ticker_menu") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("filter_by_direction", settings.Language), "historyfilter_direction_menu") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("filter_by_result", settings.Language), "historyfilter_result_menu") },
                 new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "history") }
             };
             return (text, new InlineKeyboardMarkup(rows));
@@ -1109,8 +1279,8 @@ namespace TradingBot.Services
 
             var buttons = new List<InlineKeyboardButton[]>
             {
-                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "🆘 Техподдержка" : "🆘 Support", "support") },
-                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "📣 Что нового" : "📣 What's new", "whatsnew") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("support", settings.Language), "support") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("whatsnew", settings.Language), "whatsnew") },
                 new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "main") }
             };
 
@@ -1141,14 +1311,14 @@ namespace TradingBot.Services
             // Основные кнопки меню настроек
             var rows = new List<InlineKeyboardButton[]>
             {
-                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "🌐 Сменить язык" : "🌐 Change language", "settings_language") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("language", settings.Language), "settings_language") },
                 new[] { InlineKeyboardButton.WithCallbackData(
-                    settings.Language == "ru" 
-                        ? (settings.NotificationsEnabled ? "🔕 Отключить уведомления" : "🔔 Включить уведомления")
-                        : (settings.NotificationsEnabled ? "🔕 Disable notifications" : "🔔 Enable notifications"), 
+                    settings.NotificationsEnabled 
+                        ? GetText("notifications", settings.Language) + " 🔕"
+                        : GetText("notifications", settings.Language) + " 🔔", 
                     "settings_notifications") },
-                new[] { InlineKeyboardButton.WithCallbackData(settings.Language == "ru" ? "📈 Избранные тикеры" : "📈 Favorite tickers", "settings_tickers") },
-                new[] { InlineKeyboardButton.WithCallbackData("🌐 Настройки Notion", "settings_notion") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("favorite_tickers", settings.Language), "settings_tickers") },
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_integration", settings.Language), "settings_notion") },
                 new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "main") }
             };
 
@@ -1183,18 +1353,18 @@ namespace TradingBot.Services
             if (settings.NotionEnabled && !string.IsNullOrEmpty(settings.NotionIntegrationToken))
             {
                 // опции для уже подключённого аккаунта
-                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🔌 Отключить Notion", "notion_disconnect") });
-                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🔑 Изменить токен", "notion_token") });
-                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🗄️ Изменить базу", "notion_database") });
-                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🧪 Проверить подключение", "notion_test") });
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_disconnect", settings.Language), "notion_disconnect") });
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_token", settings.Language), "notion_token") });
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_database", settings.Language), "notion_database") });
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_test", settings.Language), "notion_test") });
             }
             else
             {
                 // опция для подключения
-                rows.Add(new[] { InlineKeyboardButton.WithCallbackData("🔗 Подключить Notion", "notion_connect") });
+                rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("notion_connect", settings.Language), "notion_connect") });
             }
             // назад в основное меню настроек
-            rows.Add(new[] { InlineKeyboardButton.WithCallbackData("⬅️ Назад", "settings") });
+            rows.Add(new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "settings") });
 
             return (sb.ToString().TrimEnd(), new InlineKeyboardMarkup(rows));
         }
@@ -1204,11 +1374,10 @@ namespace TradingBot.Services
         /// </summary>
         public (string Text, InlineKeyboardMarkup Keyboard) GetNotionTokenPrompt(UserSettings settings)
         {
-            string text = "🔑 Пожалуйста, отправьте токен интеграции Notion.\n\n" +
-                          "Получить токен можно в настройках интеграции Notion. Если хотите отменить ввод, нажмите кнопку ниже.";
+            string text = GetText("notion_token_input", settings.Language);
             var keyboard = new InlineKeyboardMarkup(new[]
             {
-                new[] { InlineKeyboardButton.WithCallbackData("❌ Отмена", "notion_cancel") }
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("cancel", settings.Language), "notion_cancel") }
             });
             return (text, keyboard);
         }
@@ -1218,12 +1387,10 @@ namespace TradingBot.Services
         /// </summary>
         public (string Text, InlineKeyboardMarkup Keyboard) GetNotionDatabasePrompt(UserSettings settings)
         {
-            string text = "🗄️ Пожалуйста, отправьте Database ID вашей базы Notion или ссылку на неё.\n\n" +
-                          "Database ID находится в ссылке на вашу базу: это набор символов в конце адреса.\n" +
-                          "Если хотите отменить ввод, нажмите кнопку ниже.";
+            string text = GetText("notion_database_input", settings.Language);
             var keyboard = new InlineKeyboardMarkup(new[]
             {
-                new[] { InlineKeyboardButton.WithCallbackData("❌ Отмена", "notion_cancel") }
+                new[] { InlineKeyboardButton.WithCallbackData(GetText("cancel", settings.Language), "notion_cancel") }
             });
             return (text, keyboard);
         }

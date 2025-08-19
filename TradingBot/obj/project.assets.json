@@ -1848,9 +1848,10 @@
           "lib/net6.0/SQLitePCLRaw.provider.e_sqlite3.dll": {}
         }
       },
-      "StackExchange.Redis/2.6.122": {
+      "StackExchange.Redis/2.7.17": {
         "type": "package",
         "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "6.0.0",
           "Pipelines.Sockets.Unofficial": "2.2.8"
         },
         "compile": {
@@ -4873,10 +4874,10 @@
         "sqlitepclraw.provider.e_sqlite3.nuspec"
       ]
     },
-    "StackExchange.Redis/2.6.122": {
-      "sha512": "wp7mvGpFXaevfZ07/SDeh/6YHUJEgwJIGyjbDWKBYbPwKMJQYFz9zFEmBptqtVzqvSgft5nlewwutoaMaG0LPA==",
+    "StackExchange.Redis/2.7.17": {
+      "sha512": "PduekHww3CrCBr1ebIPX4k4zdah9wjJ4AQZXfp+JfGJQfwf8s1SHSY7kthDi9MP0ULcYrNw4xnbRXFMbCryIig==",
       "type": "package",
-      "path": "stackexchange.redis/2.6.122",
+      "path": "stackexchange.redis/2.7.17",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -4890,7 +4891,7 @@
         "lib/netcoreapp3.1/StackExchange.Redis.xml",
         "lib/netstandard2.0/StackExchange.Redis.dll",
         "lib/netstandard2.0/StackExchange.Redis.xml",
-        "stackexchange.redis.2.6.122.nupkg.sha512",
+        "stackexchange.redis.2.7.17.nupkg.sha512",
         "stackexchange.redis.nuspec"
       ]
     },
@@ -5565,6 +5566,7 @@
       "Serilog.Extensions.Hosting >= 8.0.0",
       "Serilog.Sinks.Console >= 5.0.1",
       "Serilog.Sinks.File >= 5.0.0",
+      "StackExchange.Redis >= 2.7.17",
       "System.Drawing.Common >= 8.0.0",
       "Telegram.Bot >= 22.6.0",
       "Tesseract >= 5.2.0",
@@ -5716,6 +5718,10 @@
           "Serilog.Sinks.File": {
             "target": "Package",
             "version": "[5.0.0, )"
+          },
+          "StackExchange.Redis": {
+            "target": "Package",
+            "version": "[2.7.17, )"
           },
           "System.Drawing.Common": {
             "target": "Package",

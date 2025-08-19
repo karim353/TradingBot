@@ -99,12 +99,31 @@ var host = Host.CreateDefaultBuilder(args)
         // Общие зависимости
         services.AddSingleton<PnLService>();
         services.AddSingleton<UIManager>();
-        services.AddSingleton<KeyboardService>();
+        // Redis кеширование
+        bool redisEnabled = config.GetValue<bool>("Caching:Redis:Enabled", false);
+        if (redisEnabled)
+        {
+            string redisConnection = config.GetConnectionString("Redis") ?? "localhost:6379";
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = redisConnection;
+            });
+            services.AddScoped<IRedisCacheService, RedisCacheService>();
+            services.AddScoped<ICacheService, RedisCacheService>();
+        }
+        else
+        {
+            // Fallback на MemoryCache
+            services.AddMemoryCache();
+            services.AddScoped<ICacheService, MemoryCacheService>();
+        }
+        
+        // Всегда регистрируем IMemoryCache для совместимости
         services.AddMemoryCache();
+        
         services.AddScoped<TradeRepository>();
         services.AddScoped<UserSettingsService>();
-        services.AddScoped<ErrorHandlingService>();
-        
+
         // HTTP клиенты для Notion API с Polly политиками
         services.AddNotionHttpClients();
         
@@ -114,7 +133,7 @@ var host = Host.CreateDefaultBuilder(args)
         // Сервисы для работы с Notion
         services.AddScoped<PersonalNotionService>();
         services.AddScoped<NotionSettingsService>();
-        services.AddScoped<NotionSchemaCacheService>();
+
         
         // Добавляем NotionService с конфигурацией
         services.AddScoped<NotionService>(provider =>
@@ -125,8 +144,7 @@ var host = Host.CreateDefaultBuilder(args)
             return new NotionService(httpClient, databaseId, logger);
         });
         
-        // Сервис фоновых задач
-        services.AddSingleton<BackgroundTaskService>();
+
         
         // Сервис валидации
         services.AddScoped<ValidationService>();
@@ -137,15 +155,16 @@ var host = Host.CreateDefaultBuilder(args)
         // Глобальный обработчик исключений
         services.AddScoped<GlobalExceptionHandler>();
         
-        // Сервис мониторинга здоровья системы
-        services.AddScoped<HealthCheckService>();
-        
         // Сервис метрик Prometheus
         services.AddSingleton<IMetricsService, PrometheusMetricsService>();
         
         // Сервис мониторинга здоровья системы (фоновый)
         services.AddScoped<IHealthMonitoringService, HealthMonitoringService>();
         services.AddHostedService<HealthMonitoringService>();
+        
+        // Регистрация объединенных сервисов
+        services.AddHostedService<BotService>();
+        services.AddHostedService<ReportService>();
         
         // Сервис сбора системных метрик
         services.AddHostedService<SystemMetricsCollector>();
@@ -187,7 +206,7 @@ var host = Host.CreateDefaultBuilder(args)
             var pnlService = provider.GetRequiredService<PnLService>();
             var uiManager = provider.GetRequiredService<UIManager>();
             var logger = provider.GetRequiredService<ILogger<UpdateHandler>>();
-            var cache = provider.GetRequiredService<IMemoryCache>();
+            var cache = provider.GetRequiredService<ICacheService>();
             var validationService = provider.GetRequiredService<ValidationService>();
             var rateLimitingService = provider.GetRequiredService<RateLimitingService>();
             var metricsService = provider.GetRequiredService<TradingBot.Services.Interfaces.IMetricsService>();
@@ -197,8 +216,6 @@ var host = Host.CreateDefaultBuilder(args)
             return new UpdateHandler(tradeStorage, pnlService, uiManager, logger, cache, validationService, rateLimitingService, metricsService, exceptionHandler, connectionString, botId);
         });
 
-        services.AddHostedService<BotService>();
-        services.AddHostedService<ReportService>();
         services.AddHostedService<AdvancedMonitoringService>();
     })
     .ConfigureLogging(logging =>
