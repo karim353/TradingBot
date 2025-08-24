@@ -1,32 +1,25 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\KaRKhaziev\\RiderProjects\\TradingBot\\TradingBot\\TradingBot.csproj": {}
+    "/home/plutos/Документы/Projects/TradingBot/TradingBot/TradingBot.csproj": {}
   },
   "projects": {
-    "C:\\Users\\KaRKhaziev\\RiderProjects\\TradingBot\\TradingBot\\TradingBot.csproj": {
+    "/home/plutos/Документы/Projects/TradingBot/TradingBot/TradingBot.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\KaRKhaziev\\RiderProjects\\TradingBot\\TradingBot\\TradingBot.csproj",
+        "projectUniqueName": "/home/plutos/Документы/Projects/TradingBot/TradingBot/TradingBot.csproj",
         "projectName": "TradingBot",
-        "projectPath": "C:\\Users\\KaRKhaziev\\RiderProjects\\TradingBot\\TradingBot\\TradingBot.csproj",
-        "packagesPath": "C:\\Users\\KaRKhaziev\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\KaRKhaziev\\RiderProjects\\TradingBot\\TradingBot\\obj\\",
+        "projectPath": "/home/plutos/Документы/Projects/TradingBot/TradingBot/TradingBot.csproj",
+        "packagesPath": "/home/plutos/.nuget/packages/",
+        "outputPath": "/home/plutos/Документы/Projects/TradingBot/TradingBot/obj/",
         "projectStyle": "PackageReference",
-        "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-        ],
         "configFilePaths": [
-          "C:\\Users\\KaRKhaziev\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+          "/home/plutos/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
         ],
         "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
-          "C:\\Program Files\\dotnet\\library-packs": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -39,11 +32,6 @@
           "warnAsError": [
             "NU1605"
           ]
-        },
-        "restoreAuditProperties": {
-          "enableAudit": "true",
-          "auditLevel": "low",
-          "auditMode": "direct"
         }
       },
       "frameworks": {
@@ -136,6 +124,10 @@
               "target": "Package",
               "version": "[8.0.0, )"
             },
+            "Serilog.Settings.Configuration": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
             "Serilog.Sinks.Console": {
               "target": "Package",
               "version": "[5.0.1, )"
@@ -184,12 +176,46 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Runtime.linux-x64",
+              "version": "[8.0.19, 8.0.19]"
+            },
+            {
+              "name": "Microsoft.AspNetCore.App.Runtime.win-x64",
+              "version": "[8.0.19, 8.0.19]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Host.linux-x64",
+              "version": "[8.0.19, 8.0.19]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Host.win-x64",
+              "version": "[8.0.19, 8.0.19]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Runtime.linux-x64",
+              "version": "[8.0.19, 8.0.19]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Runtime.win-x64",
+              "version": "[8.0.19, 8.0.19]"
+            }
+          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.407/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/usr/lib64/dotnet/sdk/8.0.119/PortableRuntimeIdentifierGraph.json"
+        }
+      },
+      "runtimes": {
+        "linux-x64": {
+          "#import": []
+        },
+        "win-x64": {
+          "#import": []
         }
       }
     }

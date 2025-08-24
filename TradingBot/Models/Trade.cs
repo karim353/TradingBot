@@ -51,6 +51,9 @@ namespace TradingBot.Models
         /// <summary>Текстовые детали входа</summary>
         public string? EntryDetails { get; set; }
 
+        /// <summary>Комментарий к сделке</summary>
+        public string? Comment { get; set; }
+
         /// <summary>Текстовая заметка</summary>
         public string? Note { get; set; }
 

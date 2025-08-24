@@ -5,7 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -15,15 +14,19 @@ using Telegram.Bot;
 using TradingBot.Services;
 using TradingBot.Services.Interfaces;
 using TradingBot.Models;
+using TradingBot.Middleware;
 using Microsoft.Data.Sqlite;
-using System.Collections.Generic;
 using Prometheus;
+using Serilog;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 
 var host = Host.CreateDefaultBuilder(args)
+    .UseSerilog((context, cfg) => cfg.ReadFrom.Configuration(context.Configuration))
     .ConfigureWebHostDefaults(webBuilder =>
     {
-        webBuilder.UseUrls("http://localhost:5000");
+        var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "http://0.0.0.0:5000";
+        webBuilder.UseUrls(urls);
         webBuilder.Configure(app =>
         {
             // Логируем запуск веб-сервера
@@ -37,46 +40,45 @@ var host = Host.CreateDefaultBuilder(args)
             logger.LogInformation("🌐 Статические файлы настроены");
             
             app.UseRouting();
+            app.UseHttpMetrics();
+            
+            // Добавляем middleware для сбора метрик HTTP-запросов
+            app.UseMetricsMiddleware();
             
             app.UseEndpoints(endpoints =>
             {
                 // Простые эндпоинты для тестирования
                 endpoints.MapGet("/test", () => "Test endpoint works!");
                 
-                // Эндпоинт для метрик Prometheus
-                endpoints.MapGet("/metrics", async context =>
-                {
-                    logger.LogInformation("📊 Запрос метрик от {RemoteIpAddress}", context.Connection.RemoteIpAddress);
-                    context.Response.ContentType = "text/plain; version=0.0.4; charset=utf-8";
-                    var metrics = Metrics.DefaultRegistry.ToString() ?? string.Empty;
-                    await context.Response.WriteAsync(metrics);
-                    logger.LogInformation("📊 Метрики отправлены, размер: {Size} символов", metrics.Length);
-                });
+                // Метрики Prometheus
+                endpoints.MapMetrics();
                 
-                // Эндпоинт для health checks
-                endpoints.MapGet("/health", async context =>
+                // Health checks
+                endpoints.MapHealthChecks("/health");
+                
+                // Расширенный дашборд метрик
+                endpoints.MapGet("/metrics-dashboard", context =>
                 {
-                    logger.LogInformation("🏥 Health check от {RemoteIpAddress}", context.Connection.RemoteIpAddress);
-                    context.Response.ContentType = "application/json";
-                    var healthResponse = "{\"status\":\"healthy\",\"timestamp\":\"" + DateTime.UtcNow.ToString("O") + "\"}";
-                    await context.Response.WriteAsync(healthResponse);
-                    logger.LogInformation("🏥 Health check отправлен");
+                    context.Response.Redirect("/metrics-dashboard.html");
+                    return Task.CompletedTask;
                 });
                 
                 // Корневой эндпоинт - перенаправляем на дашборд
-                endpoints.MapGet("/", async context =>
+                endpoints.MapGet("/", context =>
                 {
                     logger.LogInformation("🏠 Главная страница от {RemoteIpAddress}", context.Connection.RemoteIpAddress);
                     context.Response.Redirect("/index.html");
+                    return Task.CompletedTask;
                 });
             });
             
-            logger.LogInformation("🌐 Веб-сервер настроен и запущен на http://localhost:5000");
+            logger.LogInformation("🌐 Веб-сервер настроен и запущен на {Urls}", urls);
         });
     })
     .ConfigureAppConfiguration((context, config) =>
     {
         config.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+        config.AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", optional: true, reloadOnChange: true);
         config.AddEnvironmentVariables();
     })
     .ConfigureServices((context, services) =>
@@ -114,7 +116,6 @@ var host = Host.CreateDefaultBuilder(args)
         else
         {
             // Fallback на MemoryCache
-            services.AddMemoryCache();
             services.AddScoped<ICacheService, MemoryCacheService>();
         }
         
@@ -158,6 +159,9 @@ var host = Host.CreateDefaultBuilder(args)
         // Сервис метрик Prometheus
         services.AddSingleton<IMetricsService, PrometheusMetricsService>();
         
+        // Расширенный сборщик метрик
+        services.AddHostedService<AdvancedMetricsCollector>();
+        
         // Сервис мониторинга здоровья системы (фоновый)
         services.AddScoped<IHealthMonitoringService, HealthMonitoringService>();
         services.AddHostedService<HealthMonitoringService>();
@@ -169,6 +173,7 @@ var host = Host.CreateDefaultBuilder(args)
         // Сервис сбора системных метрик
         services.AddHostedService<SystemMetricsCollector>();
         services.AddHostedService<MetricsUpdateService>();
+        services.AddHostedService<DailySummaryService>();
         
         // Новые сервисы мониторинга и уведомлений
         services.AddScoped<INotificationService, NotificationService>();
@@ -199,8 +204,8 @@ var host = Host.CreateDefaultBuilder(args)
             services.AddScoped<ITradeStorage, SQLiteTradeStorage>();
         }
 
-        // UpdateHandler с зависимостями
-        services.AddSingleton<UpdateHandler>(provider =>
+        // UpdateHandler с зависимостями (scoped, чтобы не захватывать scoped-зависимости в singleton)
+        services.AddScoped<UpdateHandler>(provider =>
         {
             var tradeStorage = provider.GetRequiredService<ITradeStorage>();
             var pnlService = provider.GetRequiredService<PnLService>();
@@ -218,12 +223,7 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddHostedService<AdvancedMonitoringService>();
     })
-    .ConfigureLogging(logging =>
-    {
-        logging.ClearProviders();
-        logging.AddConsole();
-        logging.SetMinimumLevel(LogLevel.Information);
-    })
+    // Логирование перенесено на Serilog через UseSerilog выше
     .Build();
 
 using (var scope = host.Services.CreateScope())
@@ -304,7 +304,7 @@ using (var scope = host.Services.CreateScope())
 
 await host.RunAsync();
 
-static async Task EnsureDatabaseSchemaAsync(TradeContext ctx, ILogger logger)
+static async Task EnsureDatabaseSchemaAsync(TradeContext ctx, Microsoft.Extensions.Logging.ILogger logger)
 {
     var requiredColumns = new Dictionary<string, string>
     {

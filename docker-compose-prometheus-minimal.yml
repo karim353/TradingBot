@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: tradingbot-prometheus-minimal
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks:
+      - tradingbot_default
+
+networks:
+  tradingbot_default:
+    external: true

@@ -52,11 +52,11 @@ namespace TradingBot.Services
         {
             ["ru"] = new Dictionary<string, string>
             {
-                ["welcome"] = "🚀 Добро пожаловать в TradingBot!\n\n📊 Я помогу вам вести учёт торговых сделок и анализировать результаты.\n\n💡 Основные возможности:\n• 📸 Добавление сделок через скриншоты\n• ⌨️ Ручной ввод данных\n• 📈 Детальная статистика и аналитика\n• 🌐 Синхронизация с Notion\n• 💾 Локальное хранение в SQLite\n\nНажмите 'Далее' для краткого обучения.",
+                ["welcome"] = "🚀 Добро пожаловать в TradingBot Pro!\n\n📊 Ваш профессиональный помощник для анализа торговых сделок и улучшения результатов.\n\n💡 Ключевые возможности:\n• 📸 Автоматическое извлечение данных из скриншотов\n• ⌨️ Интуитивный ручной ввод сделок\n• 📈 Продвинутая аналитика и отчёты\n• 🌐 Интеграция с Notion для командной работы\n• 💾 Безопасное локальное хранение\n• 📊 Детальные графики и метрики\n\n🎯 Нажмите 'Далее' для быстрого обучения!",
                 ["onboarding_1"] = "📥 Добавление сделок\n\nУ вас есть два способа:\n\n📸 Скриншот: Отправьте фото с экрана терминала - я автоматически извлеку данные\n\n⌨️ Ручной ввод: Пошаговое заполнение всех полей сделки\n\nКаждый способ одинаково эффективен!",
                 ["onboarding_2"] = "📊 Аналитика и статистика\n\nПосле добавления сделок вы получите:\n\n📈 Детальную статистику по периодам\n📊 Графики эквити и P&L\n🎯 Анализ win rate и серий\n📅 Отчёты по дням/неделям/месяцам\n\nВся информация в удобном формате!",
                 ["onboarding_3"] = "⚙️ Настройки и интеграции\n\nНастройте бота под себя:\n\n🌐 Язык интерфейса (RU/EN)\n🔔 Уведомления о важных событиях\n📊 Интеграция с Notion для командной работы\n💾 Локальная база данных для приватности\n\n🌐 Персональная интеграция с Notion:\n• Подключите свою базу данных\n• Используйте собственные справочники\n• Синхронизируйте сделки\n\n🔧 Меню настроек:\n• Управление языком и уведомлениями\n• Подключение персонального Notion\n• Настройка избранных тикеров\n• Персональные справочники\n\nГотовы начать? Нажмите 'Главное меню'!",
-                ["main_menu"] = "🎯 TradingBot - Ваш помощник в торговле\n\n📊 Статистика за сегодня:\n📅 Сделок: {0} | 📈 PnL: {1}% | ✅ Win Rate: {2}%\n\n🚀 Что хотите сделать?\n\n➕ Добавить новую сделку\n📈 Посмотреть статистику\n📜 История всех сделок\n⚙️ Настройки бота\n🆘 Помощь и поддержка",
+                ["main_menu"] = "🎯 TradingBot - Ваш помощник в торговле\n\n📊 Статистика за сегодня:\n📅 Сделок: {0} | 📈 PnL: {1} | ✅ Win Rate: {2}\n\n🚀 Что хотите сделать?\n\n➕ Добавить новую сделку\n📈 Посмотреть статистику\n📜 История всех сделок\n⚙️ Настройки бота\n🆘 Помощь и поддержка",
                 ["please_use_buttons"] = "👇 Пожалуйста, используйте кнопки ниже для навигации.",
                 ["error_occurred"] = "⚠️ Произошла ошибка. Попробуйте снова.",
                 ["trade_cancelled"] = "❌ Ввод сделки отменён.",
@@ -98,6 +98,12 @@ namespace TradingBot.Services
                 ["notion_connection_failed"] = "❌ Не удалось подключиться к Notion\n\nПроверьте:\n• Правильность токена\n• Доступ к базе данных\n• Права интеграции",
                 ["notion_settings_saved"] = "✅ Настройки Notion сохранены",
                 ["notion_disconnected"] = "🔌 Notion отключен",
+                
+                // Новые ключи для улучшенных сообщений об ошибках
+                ["error_what_happened"] = "Что произошло",
+                ["error_what_to_do"] = "Что делать",
+                ["error_next_step"] = "Следующий шаг",
+                ["error_unknown"] = "Неизвестная ошибка",
 
                 // Тексты шагов
                 ["step_1"] = "🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜ Шаг 1/14: Выберите тикер",
@@ -230,6 +236,7 @@ namespace TradingBot.Services
                 ["trade_history"] = "📜 История сделок",
                 ["settings"] = "⚙️ Настройки",
                 ["help"] = "🆘 Помощь",
+                ["support"] = "💬 Поддержка",
                 ["next"] = "Далее ▶",
                 ["start"] = "🚀 Начать!",
                 ["back"] = "◀ Назад",
@@ -311,11 +318,11 @@ namespace TradingBot.Services
             // Английские тексты (можно аналогично заполнить или оставить пустыми для примера)
             ["en"] = new Dictionary<string, string>
             {
-                ["welcome"] = "🚀 Welcome to TradingBot!\n\n📊 I'll help you track trading deals and analyze results.\n\n💡 Main features:\n• 📸 Add deals via screenshots\n• ⌨️ Manual data entry\n• 📈 Detailed statistics and analytics\n• 🌐 Notion synchronization\n• 💾 Local SQLite storage\n\nClick 'Next' for a quick tutorial.",
+                ["welcome"] = "🚀 Welcome to TradingBot Pro!\n\n📊 Your professional assistant for trading analysis and performance improvement.\n\n💡 Key capabilities:\n• 📸 Automatic data extraction from screenshots\n• ⌨️ Intuitive manual trade entry\n• 📈 Advanced analytics and reports\n• 🌐 Notion integration for team collaboration\n• 💾 Secure local storage\n• 📊 Detailed charts and metrics\n\n🎯 Click 'Next' for a quick tutorial!",
                 ["onboarding_1"] = "📥 Adding Deals\n\nYou have two ways:\n\n📸 Screenshot: Send a photo of your terminal screen - I'll automatically extract data\n\n⌨️ Manual entry: Step-by-step filling of all deal fields\n\nBoth methods are equally effective!",
                 ["onboarding_2"] = "📊 Analytics and Statistics\n\nAfter adding deals, you'll get:\n\n📈 Detailed statistics by periods\n📊 Equity and P&L charts\n🎯 Win rate and streak analysis\n📅 Reports by days/weeks/months\n\nAll information in a convenient format!",
                 ["onboarding_3"] = "⚙️ Settings and Integrations\n\nConfigure the bot for yourself:\n\n🌐 Interface language (RU/EN)\n🔔 Notifications about important events\n📊 Notion integration for team work\n💾 Local database for privacy\n\n🌐 Personal Notion integration:\n• Connect your own database\n• Use custom dictionaries\n• Sync your trades\n\n🔧 Settings menu:\n• Language and notification management\n• Personal Notion connection\n• Favorite tickers setup\n• Personal dictionaries\n\nReady to start? Click 'Main Menu'!",
-                ["main_menu"] = "🎯 TradingBot - Your Trading Assistant\n\n📊 Today's Statistics:\n📅 Deals: {0} | 📈 PnL: {1}% | ✅ Win Rate: {2}%\n\n🚀 What would you like to do?\n\n➕ Add new deal\n📈 View statistics\n📜 Deal history\n⚙️ Bot settings\n🆘 Help and support",
+                ["main_menu"] = "🎯 TradingBot - Your Trading Assistant\n\n📊 Today's Statistics:\n📅 Deals: {0} | 📈 PnL: {1} | ✅ Win Rate: {2}\n\n🚀 What would you like to do?\n\n➕ Add new deal\n📈 View statistics\n📜 Deal history\n⚙️ Bot settings\n🆘 Help and support",
                 ["main_menu_button"] = "◀️ Main Menu",
                 ["skip"] = "➡ Skip",
                 ["cancel"] = "🚫 Cancel",
@@ -416,6 +423,12 @@ namespace TradingBot.Services
                 ["history_filter_ticker_label"] = "Ticker",
                 ["history_filter_pnl_label"] = "PnL",
                 
+                // New keys for improved error messages
+                ["error_what_happened"] = "What happened",
+                ["error_what_to_do"] = "What to do",
+                ["error_next_step"] = "Next step",
+                ["error_unknown"] = "Unknown error",
+                
                 // Тексты шагов для английского языка
                 ["step_1"] = "🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜ Step 1/14: Select ticker",
                 ["step_2"] = "🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜ Step 2/14: Select account",
@@ -496,6 +509,7 @@ namespace TradingBot.Services
                 ["trade_history"] = "📜 Trade History",
                 ["settings"] = "⚙️ Settings",
                 ["help"] = "🆘 Help",
+                ["support"] = "💬 Support",
                 ["next"] = "Next ▶",
                 ["start"] = "🚀 Start!",
                 ["back"] = "◀ Back",
@@ -591,6 +605,75 @@ namespace TradingBot.Services
                 new[] { InlineKeyboardButton.WithCallbackData(GetText("help", settings.Language), "help") }
             };
             return new InlineKeyboardMarkup(buttons);
+        }
+
+        /// <summary>
+        /// Получает улучшенное главное меню с персональными элементами
+        /// </summary>
+        public async Task<InlineKeyboardMarkup> GetSmartMainMenuAsync(UserSettings settings, long userId)
+        {
+            var buttons = new List<InlineKeyboardButton[]>();
+            
+            // Основные функции
+            buttons.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData(GetText("add_trade", settings.Language), "start_trade"),
+                InlineKeyboardButton.WithCallbackData(GetText("my_stats", settings.Language), "stats")
+            });
+            
+            // Быстрые действия (на основе истории пользователя)
+            var quickActions = await GetQuickActionsAsync(userId, settings.Language);
+            if (quickActions.Any())
+            {
+                buttons.Add(quickActions.Select(a => InlineKeyboardButton.WithCallbackData(a.Text, a.Callback)).ToArray());
+            }
+            
+            // Стандартные функции
+            buttons.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData(GetText("trade_history", settings.Language), "history"),
+                InlineKeyboardButton.WithCallbackData(GetText("settings", settings.Language), "settings")
+            });
+            
+            // Помощь и поддержка
+            buttons.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData(GetText("help", settings.Language), "help"),
+                InlineKeyboardButton.WithCallbackData(GetText("support", settings.Language), "support")
+            });
+            
+            return new InlineKeyboardMarkup(buttons);
+        }
+
+        /// <summary>
+        /// Получает улучшенный текст главного меню с персональным приветствием
+        /// </summary>
+        public string GetEnhancedMainMenuText(UserSettings settings, int totalTrades = 0, decimal totalPnL = 0, double winRate = 0)
+        {
+            // Добавляем персональное приветствие
+            var greeting = GetPersonalizedGreeting(settings.Language);
+            
+            // Используем цветовое кодирование для статистики
+            var coloredPnL = GetColoredPnL((double)totalPnL);
+            var coloredWinRate = GetColoredWinRate(winRate);
+            
+            var baseText = GetText("main_menu", settings.Language, totalTrades, coloredPnL, coloredWinRate);
+            
+            return $"{greeting}\n\n{baseText}";
+        }
+
+        /// <summary>
+        /// Получает быстрые действия для пользователя
+        /// </summary>
+        private async Task<List<QuickAction>> GetQuickActionsAsync(long userId, string language)
+        {
+            var actions = new List<QuickAction>();
+            
+            // Здесь можно добавить логику для получения быстрых действий
+            // Например, проверка активных сделок, уведомлений и т.д.
+            
+            // Пока возвращаем пустой список
+            return actions;
         }
 
         public InlineKeyboardMarkup GetErrorKeyboard(UserSettings settings)
@@ -1051,15 +1134,23 @@ namespace TradingBot.Services
             decimal totalPnL = trades.Sum(t => t.PnL);
             int profitable = trades.Count(t => t.PnL > 0);
             int losing = totalTrades - profitable;
-            int winRate = totalTrades > 0 ? (int)((double)profitable / totalTrades * 100) : 0;
+            double winRate = totalTrades > 0 ? (double)profitable / totalTrades * 100 : 0;
             string periodText = GetText($"period_{period}", settings.Language);
-            string text = GetText("stats_result", settings.Language, periodText, totalTrades, totalPnL.ToString("F2"),
-                profitable, losing, winRate);
+            
+            // Используем цветовое кодирование для лучшего UX
+            var coloredPnL = GetColoredPnL((double)totalPnL);
+            var coloredWinRate = GetColoredWinRate(winRate);
+            
+            // Создаем улучшенный текст статистики
+            var statsText = settings.Language == "ru" 
+                ? $"📊 Статистика за {periodText}:\n\n📈 Всего сделок: {totalTrades}\n💰 Общий PnL: {coloredPnL}\n✅ Прибыльных: {profitable}\n❌ Убыточных: {losing}\n🎯 Винрейт: {coloredWinRate}"
+                : $"📊 Statistics for {periodText}:\n\n📈 Total trades: {totalTrades}\n💰 Total PnL: {coloredPnL}\n✅ Profitable: {profitable}\n❌ Losing: {losing}\n🎯 Win rate: {coloredWinRate}";
+            
             var keyboard = new InlineKeyboardMarkup(new[]
             {
                 new[] { InlineKeyboardButton.WithCallbackData(GetText("back", settings.Language), "main") }
             });
-            return (text, keyboard);
+            return (statsText, keyboard);
         }
 
         public (string Text, InlineKeyboardMarkup Keyboard) GetAdvancedStatsMenu(UserSettings settings)
@@ -1658,6 +1749,335 @@ namespace TradingBot.Services
             }
 
             return null;
+        }
+
+        // ==================== НОВЫЕ МЕТОДЫ ДЛЯ УЛУЧШЕНИЯ UX ====================
+
+        /// <summary>
+        /// Получает прогресс-индикатор для пошагового ввода сделок
+        /// </summary>
+        public string GetStepProgress(int currentStep, int totalSteps, string stepName, UserSettings settings)
+        {
+            var progress = (currentStep * 100) / totalSteps;
+            var progressBar = string.Join("", Enumerable.Repeat("🟩", currentStep)) + string.Join("", Enumerable.Repeat("⬜", totalSteps - currentStep));
+            
+            return $"""
+            📝 {stepName}
+            
+            Шаг {currentStep} из {totalSteps} ({progress}%)
+            {progressBar}
+            
+            💡 Подсказка: {GetStepHint(currentStep, settings.Language)}
+            """;
+        }
+
+        /// <summary>
+        /// Получает подсказку для конкретного шага
+        /// </summary>
+        private string GetStepHint(int step, string language)
+        {
+            var hints = language == "ru" ? _ruStepHints : _enStepHints;
+            return hints.TryGetValue(step, out var hint) ? hint : hints[0];
+        }
+
+        /// <summary>
+        /// Подсказки для шагов на русском языке
+        /// </summary>
+        private readonly Dictionary<int, string> _ruStepHints = new()
+        {
+            { 1, "Выберите тикер из списка или введите новый" },
+            { 2, "Укажите тип позиции (Long/Short)" },
+            { 3, "Введите размер позиции в лотах" },
+            { 4, "Укажите цену входа" },
+            { 5, "Введите стоп-лосс в процентах" },
+            { 6, "Укажите тейк-профит в процентах" },
+            { 7, "Выберите торговую сессию" },
+            { 8, "Опишите торговую идею" },
+            { 9, "Укажите эмоциональное состояние" },
+            { 10, "Добавьте скриншот (необязательно)" },
+            { 11, "Проверьте все данные" },
+            { 12, "Подтвердите сохранение" },
+            { 13, "Выберите способ сохранения" },
+            { 14, "Готово! Сделка сохранена" }
+        };
+
+        /// <summary>
+        /// Подсказки для шагов на английском языке
+        /// </summary>
+        private readonly Dictionary<int, string> _enStepHints = new()
+        {
+            { 1, "Choose ticker from list or enter new one" },
+            { 2, "Specify position type (Long/Short)" },
+            { 3, "Enter position size in lots" },
+            { 4, "Specify entry price" },
+            { 5, "Enter stop loss in percentage" },
+            { 6, "Specify take profit in percentage" },
+            { 7, "Select trading session" },
+            { 8, "Describe trading idea" },
+            { 9, "Specify emotional state" },
+            { 10, "Add screenshot (optional)" },
+            { 11, "Check all data" },
+            { 12, "Confirm saving" },
+            { 13, "Choose saving method" },
+            { 14, "Done! Trade saved" }
+        };
+
+        /// <summary>
+        /// Получает цветовое кодирование для PnL
+        /// </summary>
+        public string GetColoredPnL(double pnl)
+        {
+            if (pnl > 0)
+            {
+                var emoji = pnl > 5 ? "🚀" : pnl > 2 ? "📈" : "🟢";
+                return $"{emoji} +{pnl:F2}%";
+            }
+            if (pnl < 0)
+            {
+                var emoji = pnl < -5 ? "💥" : pnl < -2 ? "📉" : "🔴";
+                return $"{emoji} {pnl:F2}%";
+            }
+            return $"⚪ {pnl:F2}%";
+        }
+
+        /// <summary>
+        /// Получает цветовое кодирование для Win Rate
+        /// </summary>
+        public string GetColoredWinRate(double winRate)
+        {
+            if (winRate >= 70) return $"🏆 {winRate:F1}%";
+            if (winRate >= 60) return $"🥇 {winRate:F1}%";
+            if (winRate >= 50) return $"🥈 {winRate:F1}%";
+            if (winRate >= 40) return $"🥉 {winRate:F1}%";
+            return $"📊 {winRate:F1}%";
+        }
+
+        /// <summary>
+        /// Получает цветовое кодирование для серий
+        /// </summary>
+        public string GetColoredStreak(int streak, bool isWin)
+        {
+            if (isWin)
+            {
+                if (streak >= 10) return $"🔥 {streak} побед подряд!";
+                if (streak >= 5) return $"⚡ {streak} побед подряд";
+                return $"✅ {streak} побед подряд";
+            }
+            else
+            {
+                if (streak >= 5) return $"💔 {streak} убытков подряд";
+                return $"📉 {streak} убытков подряд";
+            }
+        }
+
+        /// <summary>
+        /// Получает персональное приветствие в зависимости от времени суток
+        /// </summary>
+        public string GetPersonalizedGreeting(string language)
+        {
+            var timeOfDay = GetTimeOfDay();
+            var greeting = timeOfDay switch
+            {
+                "morning" => language == "ru" ? "🌅 Доброе утро" : "🌅 Good morning",
+                "afternoon" => language == "ru" ? "☀️ Добрый день" : "☀️ Good afternoon",
+                "evening" => language == "ru" ? "🌆 Добрый вечер" : "🌆 Good evening",
+                "night" => language == "ru" ? "🌙 Доброй ночи" : "🌙 Good night",
+                _ => language == "ru" ? "👋 Привет" : "👋 Hello"
+            };
+            
+            return greeting;
+        }
+
+        /// <summary>
+        /// Определяет время суток
+        /// </summary>
+        private string GetTimeOfDay()
+        {
+            var hour = DateTime.Now.Hour;
+            return hour switch
+            {
+                >= 5 and < 12 => "morning",
+                >= 12 and < 17 => "afternoon",
+                >= 17 and < 22 => "evening",
+                _ => "night"
+            };
+        }
+
+        /// <summary>
+        /// Получает дружелюбное сообщение об ошибке
+        /// </summary>
+        public string GetUserFriendlyErrorMessage(string errorCode, string details = null, string language = "ru")
+        {
+            var baseMessage = GetErrorMessageBase(errorCode, language);
+            var suggestion = GetErrorSuggestion(errorCode, language);
+            var action = GetErrorAction(errorCode, language);
+            
+            var message = $"""
+            {baseMessage}
+            
+            🔍 {GetText("error_what_happened", language)}:
+            {details ?? GetText("error_unknown", language)}
+            
+            💡 {GetText("error_what_to_do", language)}:
+            {suggestion}
+            
+            🚀 {GetText("error_next_step", language)}:
+            {action}
+            """;
+            
+            return message;
+        }
+
+        /// <summary>
+        /// Получает базовое сообщение об ошибке
+        /// </summary>
+        private string GetErrorMessageBase(string errorCode, string language)
+        {
+            return errorCode switch
+            {
+                "validation_error" => language == "ru" ? "⚠️ Проверьте введенные данные" : "⚠️ Check entered data",
+                "database_error" => language == "ru" ? "💾 Проблема с базой данных" : "💾 Database problem",
+                "network_error" => language == "ru" ? "🌐 Проблема с подключением" : "🌐 Connection problem",
+                "permission_error" => language == "ru" ? "🔒 Недостаточно прав" : "🔒 Insufficient permissions",
+                "timeout_error" => language == "ru" ? "⏰ Превышено время ожидания" : "⏰ Timeout exceeded",
+                "notion_error" => language == "ru" ? "🌐 Проблема с Notion" : "🌐 Notion problem",
+                "rate_limit_error" => language == "ru" ? "⏳ Слишком много запросов" : "⏳ Too many requests",
+                _ => language == "ru" ? "❌ Произошла ошибка" : "❌ An error occurred"
+            };
+        }
+
+        /// <summary>
+        /// Получает предложения по решению ошибки
+        /// </summary>
+        private string GetErrorSuggestion(string errorCode, string language)
+        {
+            if (language == "ru")
+            {
+                return errorCode switch
+                {
+                    "validation_error" => "• Проверьте правильность ввода\n• Убедитесь, что все поля заполнены\n• Используйте правильный формат чисел",
+                    "database_error" => "• Проверьте подключение к интернету\n• Попробуйте еще раз через минуту\n• Обратитесь в поддержку",
+                    "network_error" => "• Проверьте интернет-соединение\n• Попробуйте перезагрузить бота\n• Проверьте настройки сети",
+                    "permission_error" => "• Проверьте права доступа\n• Убедитесь, что вы авторизованы\n• Обратитесь к администратору",
+                    "timeout_error" => "• Проверьте скорость интернета\n• Попробуйте еще раз\n• Уменьшите размер данных",
+                    "notion_error" => "• Проверьте токен Notion\n• Убедитесь в правах доступа\n• Проверьте ID базы данных",
+                    "rate_limit_error" => "• Подождите 1-2 минуты\n• Уменьшите частоту запросов\n• Используйте кэширование",
+                    _ => "• Попробуйте еще раз\n• Обратитесь в поддержку\n• Проверьте логи ошибок"
+                };
+            }
+            else
+            {
+                return errorCode switch
+                {
+                    "validation_error" => "• Check input correctness\n• Make sure all fields are filled\n• Use correct number format",
+                    "database_error" => "• Check internet connection\n• Try again in a minute\n• Contact support",
+                    "network_error" => "• Check internet connection\n• Try to restart the bot\n• Check network settings",
+                    "permission_error" => "• Check access rights\n• Make sure you are authorized\n• Contact administrator",
+                    "timeout_error" => "• Check internet speed\n• Try again\n• Reduce data size",
+                    "notion_error" => "• Check Notion token\n• Make sure you have access\n• Check database ID",
+                    "rate_limit_error" => "• Wait 1-2 minutes\n• Reduce request frequency\n• Use caching",
+                    _ => "• Try again\n• Contact support\n• Check error logs"
+                };
+            }
+        }
+
+        /// <summary>
+        /// Получает следующее действие для ошибки
+        /// </summary>
+        private string GetErrorAction(string errorCode, string language)
+        {
+            if (language == "ru")
+            {
+                return errorCode switch
+                {
+                    "validation_error" => "Исправьте данные и попробуйте снова",
+                    "database_error" => "Попробуйте еще раз через минуту",
+                    "network_error" => "Проверьте подключение и перезапустите",
+                    "permission_error" => "Обратитесь к администратору",
+                    "timeout_error" => "Уменьшите размер данных или подождите",
+                    "notion_error" => "Проверьте настройки Notion",
+                    "rate_limit_error" => "Подождите и попробуйте снова",
+                    _ => "Обратитесь в поддержку"
+                };
+            }
+            else
+            {
+                return errorCode switch
+                {
+                    "validation_error" => "Fix data and try again",
+                    "database_error" => "Try again in a minute",
+                    "network_error" => "Check connection and restart",
+                    "permission_error" => "Contact administrator",
+                    "timeout_error" => "Reduce data size or wait",
+                    "notion_error" => "Check Notion settings",
+                    "rate_limit_error" => "Wait and try again",
+                    _ => "Contact support"
+                };
+            }
+        }
+
+        // ==================== МЕТОДЫ ДЛЯ ОТОБРАЖЕНИЯ ПРОГРЕССА ====================
+
+        /// <summary>
+        /// Отображает индикатор прогресса для процесса ввода сделок
+        /// </summary>
+        public void ShowProgressIndicator(string message, string language = "ru")
+        {
+            var progressMessage = language == "ru" 
+                ? $"📊 [Прогресс] {message}"
+                : $"📊 [Progress] {message}";
+            
+            // В реальном приложении здесь можно добавить логирование или отправку в чат
+            Console.WriteLine(progressMessage);
+        }
+
+        /// <summary>
+        /// Скрывает индикатор прогресса
+        /// </summary>
+        public void HideProgressIndicator(string language = "ru")
+        {
+            var completionMessage = language == "ru" 
+                ? "✅ [Прогресс] Завершено"
+                : "✅ [Progress] Completed";
+            
+            Console.WriteLine(completionMessage);
+        }
+
+        /// <summary>
+        /// Отображает статистику с цветовым кодированием
+        /// </summary>
+        public void DisplayStatistics(Statistics stats, string language = "ru")
+        {
+            var header = language == "ru" ? "Статистика:" : "Statistics:";
+            Console.WriteLine(header);
+
+            DisplayStat("Прибыль", stats.Profit, language);
+            DisplayStat("Убыток", stats.Loss, language);
+            DisplayStat("Количество сделок", stats.TradeCount, language);
+        }
+
+        /// <summary>
+        /// Отображает отдельную статистику с цветовым кодированием
+        /// </summary>
+        private void DisplayStat(string name, double value, string language)
+        {
+            var color = GetColorForValue(value);
+            var resetColor = "\u001b[0m"; // Сброс цвета
+            
+            Console.WriteLine($"{name}: {color}{value}{resetColor}");
+        }
+
+        /// <summary>
+        /// Получает цвет для значения
+        /// </summary>
+        private string GetColorForValue(double value)
+        {
+            if (value > 0)
+                return "\u001b[32m"; // Зеленый
+            else if (value < 0)
+                return "\u001b[31m"; // Красный
+            else
+                return "\u001b[33m"; // Желтый
         }
     }
 }

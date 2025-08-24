@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 TradingBot - Расширенный дашборд метрик</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .metric-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-left: 5px solid #667eea;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+        }
+
+        .metric-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .metric-description {
+            color: #666;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .metric-trend {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
+
+        .trend-up { color: #28a745; }
+        .trend-down { color: #dc3545; }
+        .trend-stable { color: #6c757d; }
+
+        .charts-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .charts-section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .chart-container {
+            height: 400px;
+            margin-bottom: 20px;
+        }
+
+        .status-indicators {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .status-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .status-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin: 0 auto 10px;
+            display: block;
+        }
+
+        .status-healthy { background: #28a745; }
+        .status-warning { background: #ffc107; }
+        .status-error { background: #dc3545; }
+
+        .refresh-button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            margin-bottom: 20px;
+        }
+
+        .refresh-button:hover {
+            transform: scale(1.05);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 1px solid #c3e6cb;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 TradingBot Metrics Dashboard</h1>
+            <p>Расширенный мониторинг производительности и торговых метрик</p>
+        </div>
+
+        <button class="refresh-button" onclick="refreshMetrics()">
+            🔄 Обновить метрики
+        </button>
+
+        <div id="loading" class="loading">
+            <h3>⏳ Загрузка метрик...</h3>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+        <div id="success" class="success" style="display: none;"></div>
+
+        <div id="metrics-content" style="display: none;">
+            <!-- Системные метрики -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <h3>🖥️ Система</h3>
+                    <div class="metric-value" id="system-uptime">-</div>
+                    <div class="metric-description">Время работы системы</div>
+                    <div class="metric-trend">
+                        <span class="trend-stable">Стабильно работает</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3>💾 Память</h3>
+                    <div class="metric-value" id="memory-usage">-</div>
+                    <div class="metric-description">Использование памяти</div>
+                    <div class="metric-trend">
+                        <span class="trend-stable">Нормальное</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3>⚡ CPU</h3>
+                    <div class="metric-value" id="cpu-usage">-</div>
+                    <div class="metric-description">Использование процессора</div>
+                    <div class="metric-trend">
+                        <span class="trend-stable">Оптимально</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3>🗄️ База данных</h3>
+                    <div class="metric-value" id="database-size">-</div>
+                    <div class="metric-description">Размер базы данных</div>
+                    <div class="metric-trend">
+                        <span class="trend-up">Растет</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3>👥 Пользователи</h3>
+                    <div class="metric-value" id="active-users">-</div>
+                    <div class="metric-description">Активные пользователи</div>
+                    <div class="metric-trend">
+                        <span class="trend-stable">Стабильно</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3>🌐 Запросы</h3>
+                    <div class="metric-value" id="concurrent-requests">-</div>
+                    <div class="metric-description">Параллельные запросы</div>
+                    <div class="metric-trend">
+                        <span class="trend-stable">Нормальная нагрузка</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Статус компонентов -->
+            <div class="charts-section">
+                <h2>🔍 Статус компонентов системы</h2>
+                <div class="status-indicators">
+                    <div class="status-card">
+                        <span class="status-indicator status-healthy"></span>
+                        <strong>База данных</strong>
+                        <div>SQLite</div>
+                    </div>
+                    <div class="status-card">
+                        <span class="status-indicator status-healthy"></span>
+                        <strong>Redis</strong>
+                        <div>Кэширование</div>
+                    </div>
+                    <div class="status-card">
+                        <span class="status-indicator status-healthy"></span>
+                        <strong>Telegram API</strong>
+                        <div>Бот активен</div>
+                    </div>
+                    <div class="status-card">
+                        <span class="status-indicator status-healthy"></span>
+                        <strong>Notion API</strong>
+                        <div>Синхронизация</div>
+                    </div>
+                    <div class="status-card">
+                        <span class="status-indicator status-healthy"></span>
+                        <strong>Prometheus</strong>
+                        <div>Метрики</div>
+                    </div>
+                    <div class="status-card">
+                        <span class="status-indicator status-healthy"></span>
+                        <strong>Grafana</strong>
+                        <div>Визуализация</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Торговые метрики -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <h3>📈 Сделки</h3>
+                    <div class="metric-value" id="total-trades">-</div>
+                    <div class="metric-description">Всего сделок</div>
+                    <div class="metric-trend">
+                        <span class="trend-up">Активность</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3>🎯 Win Rate</h3>
+                    <div class="metric-value" id="win-rate">-</div>
+                    <div class="metric-description">Процент выигрышных сделок</div>
+                    <div class="metric-trend">
+                        <span class="trend-stable">Анализ</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3>💰 PnL</h3>
+                    <div class="metric-value" id="average-pnl">-</div>
+                    <div class="metric-description">Средний PnL на сделку</div>
+                    <div class="metric-trend">
+                        <span class="trend-stable">Мониторинг</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3>📊 Сообщения</h3>
+                    <div class="metric-value" id="total-messages">-</div>
+                    <div class="metric-description">Обработано сообщений</div>
+                    <div class="metric-trend">
+                        <span class="trend-up">Высокая активность</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3>⚡ Производительность</h3>
+                    <div class="metric-value" id="avg-response-time">-</div>
+                    <div class="metric-description">Среднее время ответа</div>
+                    <div class="metric-trend">
+                        <span class="trend-stable">Быстро</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3>🚨 Ошибки</h3>
+                    <div class="metric-value" id="total-errors">-</div>
+                    <div class="metric-description">Всего ошибок</div>
+                    <div class="metric-trend">
+                        <span class="trend-down">Минимум</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Графики производительности -->
+            <div class="charts-section">
+                <h2>📊 Графики производительности</h2>
+                <div class="chart-container">
+                    <canvas id="performance-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let performanceChart;
+        let metricsData = {};
+
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeChart();
+            refreshMetrics();
+            
+            // Автообновление каждые 30 секунд
+            setInterval(refreshMetrics, 30000);
+        });
+
+        // Инициализация графика
+        function initializeChart() {
+            const ctx = document.getElementById('performance-chart').getContext('2d');
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Время ответа (мс)',
+                        data: [],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4
+                    }, {
+                        label: 'Использование памяти (МБ)',
+                        data: [],
+                        borderColor: '#764ba2',
+                        backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                        tension: 0.4,
+                        yAxisID: 'y1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Время'
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Время ответа (мс)'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Память (МБ)'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Мониторинг производительности TradingBot'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Обновление метрик
+        async function refreshMetrics() {
+            try {
+                showLoading(true);
+                hideMessages();
+
+                // Получаем метрики
+                const metricsResponse = await fetch('/metrics');
+                const metricsText = await metricsResponse.text();
+                
+                // Парсим метрики
+                parseMetrics(metricsText);
+                
+                // Обновляем UI
+                updateMetricsUI();
+                
+                // Обновляем график
+                updateChart();
+                
+                showSuccess('Метрики успешно обновлены!');
+                showLoading(false);
+            } catch (error) {
+                console.error('Ошибка при обновлении метрик:', error);
+                showError('Ошибка при загрузке метрик: ' + error.message);
+                showLoading(false);
+            }
+        }
+
+        // Парсинг метрик Prometheus
+        function parseMetrics(metricsText) {
+            const lines = metricsText.split('\n');
+            
+            lines.forEach(line => {
+                if (line.startsWith('#') || line.trim() === '') return;
+                
+                const parts = line.split(' ');
+                if (parts.length < 2) return;
+                
+                const metricName = parts[0];
+                const metricValue = parseFloat(parts[parts.length - 1]);
+                
+                if (!isNaN(metricValue)) {
+                    metricsData[metricName] = metricValue;
+                }
+            });
+        }
+
+        // Обновление UI метрик
+        function updateMetricsUI() {
+            // Системные метрики
+            updateMetric('system-uptime', formatUptime(metricsData['tradingbot_system_uptime_seconds'] || 0));
+            updateMetric('memory-usage', formatBytes(metricsData['tradingbot_memory_usage_bytes'] || 0));
+            updateMetric('cpu-usage', formatPercentage(metricsData['tradingbot_cpu_usage_percentage'] || 0));
+            updateMetric('database-size', formatMB(metricsData['tradingbot_database_size_mb'] || 0));
+            updateMetric('active-users', Math.round(metricsData['tradingbot_active_users'] || 0));
+            updateMetric('concurrent-requests', Math.round(metricsData['tradingbot_concurrent_requests'] || 0));
+
+            // Торговые метрики
+            const totalTrades = (metricsData['tradingbot_trades_total{trade_type="buy"}'] || 0) + 
+                               (metricsData['tradingbot_trades_total{trade_type="sell"}'] || 0);
+            updateMetric('total-trades', totalTrades);
+            
+            updateMetric('win-rate', formatPercentage(metricsData['tradingbot_win_rate_percentage'] || 0));
+            updateMetric('average-pnl', formatCurrency(metricsData['tradingbot_average_pnl'] || 0));
+            
+            const totalMessages = (metricsData['tradingbot_messages_total{type="text"}'] || 0) + 
+                                 (metricsData['tradingbot_messages_total{type="callback"}'] || 0);
+            updateMetric('total-messages', totalMessages);
+            
+            updateMetric('avg-response-time', formatTime(metricsData['tradingbot_request_duration_seconds'] || 0));
+            updateMetric('total-errors', Math.round(metricsData['tradingbot_errors_total'] || 0));
+        }
+
+        // Обновление графика
+        function updateChart() {
+            const now = new Date().toLocaleTimeString();
+            
+            // Добавляем новые данные
+            performanceChart.data.labels.push(now);
+            performanceChart.data.datasets[0].data.push(metricsData['tradingbot_request_duration_seconds'] * 1000 || 0);
+            performanceChart.data.datasets[1].data.push((metricsData['tradingbot_memory_usage_bytes'] || 0) / 1024 / 1024);
+            
+            // Ограничиваем количество точек
+            if (performanceChart.data.labels.length > 20) {
+                performanceChart.data.labels.shift();
+                performanceChart.data.datasets[0].data.shift();
+                performanceChart.data.datasets[1].data.shift();
+            }
+            
+            performanceChart.update();
+        }
+
+        // Вспомогательные функции форматирования
+        function updateMetric(elementId, value) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = value;
+            }
+        }
+
+        function formatUptime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return `${hours}ч ${minutes}м`;
+        }
+
+        function formatBytes(bytes) {
+            const mb = bytes / 1024 / 1024;
+            return `${mb.toFixed(1)} МБ`;
+        }
+
+        function formatPercentage(value) {
+            return `${value.toFixed(1)}%`;
+        }
+
+        function formatMB(value) {
+            return `${value.toFixed(2)} МБ`;
+        }
+
+        function formatCurrency(value) {
+            return `$${value.toFixed(2)}`;
+        }
+
+        function formatTime(seconds) {
+            return `${(seconds * 1000).toFixed(0)} мс`;
+        }
+
+        // UI функции
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+            document.getElementById('metrics-content').style.display = show ? 'none' : 'block';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('success');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            setTimeout(() => successDiv.style.display = 'none', 3000);
+        }
+
+        function hideMessages() {
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('success').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
+

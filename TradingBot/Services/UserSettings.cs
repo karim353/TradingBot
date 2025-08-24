@@ -26,6 +26,10 @@ namespace TradingBot.Models
         public string? NotionDatabaseId { get; set; }
         public string? NotionIntegrationToken { get; set; }
 
+        // Ежедневная сводка
+        public bool DailySummaryEnabled { get; set; } = false;
+        public string DailySummaryTime { get; set; } = "21:00"; // локальное время, HH:mm
+
         public UserSettings()
         {
             Language = "ru";
@@ -44,6 +48,8 @@ namespace TradingBot.Models
             NotionEnabled = false;
             NotionDatabaseId = null;
             NotionIntegrationToken = null;
+            DailySummaryEnabled = false;
+            DailySummaryTime = "21:00";
         }
     }
 }

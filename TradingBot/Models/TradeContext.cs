@@ -36,18 +36,31 @@ namespace TradingBot.Models
             e.HasKey(t => t.Id);
             e.HasIndex(t => t.UserId);
 
+            // Явно указываем все поля как nullable (кроме Id, UserId, Date, PnL)
+            e.Property(t => t.NotionPageId).IsRequired(false);
+            e.Property(t => t.Ticker).IsRequired(false);
+            e.Property(t => t.Account).IsRequired(false);
+            e.Property(t => t.Session).IsRequired(false);
+            e.Property(t => t.Position).IsRequired(false);
+            e.Property(t => t.Direction).IsRequired(false);
+            e.Property(t => t.Result).IsRequired(false);
+            e.Property(t => t.RR).IsRequired(false);
+            e.Property(t => t.EntryDetails).IsRequired(false);
+            e.Property(t => t.Comment).IsRequired(false);
+            e.Property(t => t.Note).IsRequired(false);
+
             // Числа → REAL для SQLite
             e.Property(t => t.PnL).HasColumnType("REAL");
-            e.Property(t => t.Risk).HasColumnType("REAL");
+            e.Property(t => t.Risk).HasColumnType("REAL").IsRequired(false);
 
             // Multi-select (JSON) + сравнение коллекций
-            e.Property(t => t.Context).HasConversion(listConverter);
+            e.Property(t => t.Context).HasConversion(listConverter).IsRequired(false);
             e.Property(t => t.Context).Metadata.SetValueComparer(listComparer);
 
-            e.Property(t => t.Setup).HasConversion(listConverter);
+            e.Property(t => t.Setup).HasConversion(listConverter).IsRequired(false);
             e.Property(t => t.Setup).Metadata.SetValueComparer(listComparer);
 
-            e.Property(t => t.Emotions).HasConversion(listConverter);
+            e.Property(t => t.Emotions).HasConversion(listConverter).IsRequired(false);
             e.Property(t => t.Emotions).Metadata.SetValueComparer(listComparer);
 
             // Дата — помечаем как UTC при чтении

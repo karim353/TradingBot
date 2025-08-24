@@ -8,6 +8,6 @@ build_property.PlatformNeutralAssembly =
 build_property.EnforceExtendedAnalyzerRules = 
 build_property._SupportedPlatformList = Linux,macOS,Windows
 build_property.RootNamespace = TradingBot
-build_property.ProjectDir = C:\Users\KaRKhaziev\RiderProjects\TradingBot\TradingBot\
+build_property.ProjectDir = /home/plutos/Документы/Projects/TradingBot/TradingBot/
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 

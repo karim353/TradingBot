@@ -1,0 +1,103 @@
+groups:
+  - name: tradingbot.rules
+    rules:
+      # High Memory Usage Alert
+      - alert: HighMemoryUsage
+        expr: tradingbot_memory_usage_bytes / 1024 / 1024 > 400
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TradingBot high memory usage"
+          description: "Memory usage is above 400MB for more than 2 minutes. Current value: {{ $value }}MB"
+
+      # High CPU Usage Alert
+      - alert: HighCPUUsage
+        expr: tradingbot_cpu_usage_percent > 70
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TradingBot high CPU usage"
+          description: "CPU usage is above 70% for more than 5 minutes. Current value: {{ $value }}%"
+
+      # High Error Rate Alert
+      - alert: HighErrorRate
+        expr: rate(tradingbot_errors_total[5m]) > 0.1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TradingBot high error rate"
+          description: "Error rate is above 0.1 errors/second for more than 1 minute"
+
+      # Slow Response Time Alert
+      - alert: SlowResponseTime
+        expr: histogram_quantile(0.95, rate(tradingbot_request_duration_seconds_bucket[5m])) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TradingBot slow response time"
+          description: "95th percentile response time is above 500ms for more than 2 minutes"
+
+      # Application Down Alert
+      - alert: TradingBotDown
+        expr: up{job="tradingbot-app"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "TradingBot is down"
+          description: "TradingBot application has been down for more than 30 seconds"
+
+      # Database Connection Issues
+      - alert: DatabaseConnectionIssues
+        expr: tradingbot_database_connections_failed_total > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database connection issues"
+          description: "There are failed database connections"
+
+      # Redis Connection Issues
+      - alert: RedisConnectionIssues
+        expr: tradingbot_redis_connections_failed_total > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis connection issues"
+          description: "There are failed Redis connections"
+
+      # Low Active Users (Business Metric)
+      - alert: LowActiveUsers
+        expr: tradingbot_users_active < 1
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Low active users"
+          description: "Active users count is below 1 for more than 10 minutes"
+
+      # High Trade Processing Time
+      - alert: HighTradeProcessingTime
+        expr: histogram_quantile(0.95, rate(tradingbot_operation_duration_seconds_bucket{operation="save_trade"}[5m])) > 0.8
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High trade processing time"
+          description: "95th percentile trade processing time is above 800ms"
+
+      # Telegram API Issues
+      - alert: TelegramAPIIssues
+        expr: rate(tradingbot_telegram_api_errors_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Telegram API issues"
+          description: "High rate of Telegram API errors detected"
+

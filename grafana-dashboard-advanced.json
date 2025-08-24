@@ -1,0 +1,657 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "🚀 TradingBot Advanced Monitoring Dashboard",
+    "tags": ["tradingbot", "monitoring", "advanced", "trading"],
+    "timezone": "browser",
+    "refresh": "5s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "🏥 System Health Overview",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "tradingbot_system_health",
+            "legendFormat": "Overall Health"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "orange", "value": 50},
+                {"color": "yellow", "value": 80},
+                {"color": "green", "value": 90}
+              ]
+            },
+            "unit": "percent",
+            "decimals": 1
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "💾 Memory Usage (MB)",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "tradingbot_memory_usage_bytes / 1024 / 1024",
+            "legendFormat": "Memory Usage"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {
+                "mode": "none",
+                "group": "A"
+              },
+              "axisLabel": "",
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "yAxes": [
+          {
+            "label": "Memory (MB)",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "🖥️ CPU Usage (%)",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "tradingbot_cpu_usage_percent",
+            "legendFormat": "CPU Usage"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {
+                "mode": "none",
+                "group": "A"
+              },
+              "axisLabel": "",
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "yAxes": [
+          {
+            "label": "CPU %",
+            "min": 0,
+            "max": 100
+          }
+        ],
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "📊 Request Rate (req/sec)",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(tradingbot_requests_total[5m])",
+            "legendFormat": "Requests/sec"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {
+                "mode": "none",
+                "group": "A"
+              },
+              "axisLabel": "",
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0}
+      },
+      {
+        "id": 5,
+        "title": "⚡ Response Times (95th & 50th percentile)",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(tradingbot_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(tradingbot_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "50th percentile"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {
+                "mode": "none",
+                "group": "A"
+              },
+              "axisLabel": "",
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "yAxes": [
+          {
+            "label": "Response Time (s)",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "❌ Error Rate (errors/sec)",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(tradingbot_errors_total[5m])",
+            "legendFormat": "Errors/sec"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {
+                "mode": "none",
+                "group": "A"
+              },
+              "axisLabel": "",
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 7,
+        "title": "📈 Trading Performance Metrics",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "tradingbot_trades_total",
+            "legendFormat": "Total Trades"
+          },
+          {
+            "expr": "tradingbot_trades_profitable_total",
+            "legendFormat": "Profitable Trades"
+          },
+          {
+            "expr": "tradingbot_trades_loss_total",
+            "legendFormat": "Loss Trades"
+          },
+          {
+            "expr": "tradingbot_win_rate_percent",
+            "legendFormat": "Win Rate %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "orange", "value": 50},
+                {"color": "green", "value": 80}
+              ]
+            },
+            "unit": "short",
+            "decimals": 0
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 8,
+        "title": "👥 User Activity & Engagement",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "tradingbot_users_active",
+            "legendFormat": "Active Users"
+          },
+          {
+            "expr": "tradingbot_users_total",
+            "legendFormat": "Total Users"
+          },
+          {
+            "expr": "tradingbot_messages_processed_total",
+            "legendFormat": "Messages Processed"
+          },
+          {
+            "expr": "tradingbot_commands_executed_total",
+            "legendFormat": "Commands Executed"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 10},
+                {"color": "green", "value": 100}
+              ]
+            },
+            "unit": "short",
+            "decimals": 0
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      },
+      {
+        "id": 9,
+        "title": "💾 Database Performance",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "tradingbot_database_connections_active",
+            "legendFormat": "Active Connections"
+          },
+          {
+            "expr": "tradingbot_database_query_duration_seconds",
+            "legendFormat": "Query Duration"
+          },
+          {
+            "expr": "tradingbot_database_operations_total",
+            "legendFormat": "Total Operations"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {
+                "mode": "none",
+                "group": "A"
+              },
+              "axisLabel": "",
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 10,
+        "title": "🔴 Redis Cache Performance",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "tradingbot_redis_operations_total",
+            "legendFormat": "Redis Operations"
+          },
+          {
+            "expr": "tradingbot_redis_hit_rate_percent",
+            "legendFormat": "Cache Hit Rate %"
+          },
+          {
+            "expr": "tradingbot_redis_memory_usage_bytes / 1024 / 1024",
+            "legendFormat": "Redis Memory (MB)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {
+                "mode": "none",
+                "group": "A"
+              },
+              "axisLabel": "",
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+      },
+      {
+        "id": 11,
+        "title": "📱 Telegram Bot Metrics",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "tradingbot_telegram_updates_received_total",
+            "legendFormat": "Updates Received"
+          },
+          {
+            "expr": "tradingbot_telegram_messages_sent_total",
+            "legendFormat": "Messages Sent"
+          },
+          {
+            "expr": "tradingbot_telegram_api_latency_seconds",
+            "legendFormat": "API Latency"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {
+                "mode": "none",
+                "group": "A"
+              },
+              "axisLabel": "",
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32}
+      },
+      {
+        "id": 12,
+        "title": "📊 Trading Volume & PnL Distribution",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "tradingbot_trading_volume_total",
+            "legendFormat": "Trading Volume"
+          },
+          {
+            "expr": "tradingbot_pnl_total",
+            "legendFormat": "Total PnL"
+          },
+          {
+            "expr": "tradingbot_average_trade_size",
+            "legendFormat": "Avg Trade Size"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {
+                "mode": "none",
+                "group": "A"
+              },
+              "axisLabel": "",
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32}
+      },
+      {
+        "id": 13,
+        "title": "🔄 System Uptime & Reliability",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "tradingbot_system_uptime_seconds / 3600",
+            "legendFormat": "Uptime (hours)"
+          },
+          {
+            "expr": "tradingbot_system_restarts_total",
+            "legendFormat": "Restarts"
+          },
+          {
+            "expr": "tradingbot_health_check_status",
+            "legendFormat": "Health Check Status"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            },
+            "unit": "h",
+            "decimals": 1
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40}
+      },
+      {
+        "id": 14,
+        "title": "📋 Detailed Metrics Table",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "tradingbot_trades_total",
+            "legendFormat": "Total Trades"
+          },
+          {
+            "expr": "tradingbot_users_active",
+            "legendFormat": "Active Users"
+          },
+          {
+            "expr": "tradingbot_messages_processed_total",
+            "legendFormat": "Messages Processed"
+          },
+          {
+            "expr": "tradingbot_errors_total",
+            "legendFormat": "Total Errors"
+          },
+          {
+            "expr": "tradingbot_database_operations_total",
+            "legendFormat": "DB Operations"
+          },
+          {
+            "expr": "tradingbot_redis_operations_total",
+            "legendFormat": "Redis Operations"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 48}
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "time_range",
+          "type": "interval",
+          "query": "1m,5m,10m,30m,1h,6h,12h,1d",
+          "current": {
+            "value": "5m",
+            "text": "5m"
+          }
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "Prometheus",
+          "expr": "changes(tradingbot_version[1m]) > 0",
+          "titleFormat": "Deployment",
+          "textFormat": "New version deployed"
+        }
+      ]
+    }
+  }
+}

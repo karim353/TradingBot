@@ -10,4 +10,5 @@ public class UserState
     public string? TradeId { get; set; }        // nullable: создаём по мере ввода
     public DateTime LastInputTime { get; set; } = DateTime.UtcNow;
     public int ErrorCount { get; set; } = 0;
+    public bool IsProcessing { get; set; } = false; // индикатор занятости для UX
 }

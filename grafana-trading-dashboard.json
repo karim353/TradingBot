@@ -1,0 +1,486 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "📈 TradingBot Trading Analytics Dashboard",
+    "tags": ["tradingbot", "trading", "analytics", "pnl", "performance"],
+    "timezone": "browser",
+    "refresh": "10s",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "💰 Total PnL Overview",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "tradingbot_pnl_total",
+            "legendFormat": "Total PnL"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": -1000000},
+                {"color": "orange", "value": 0},
+                {"color": "green", "value": 1000000}
+              ]
+            },
+            "unit": "currencyUSD",
+            "decimals": 2,
+            "mappings": []
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "🎯 Win Rate (%)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "tradingbot_win_rate_percent",
+            "legendFormat": "Win Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "orange", "value": 40},
+                {"color": "yellow", "value": 60},
+                {"color": "green", "value": 80}
+              ]
+            },
+            "unit": "percent",
+            "decimals": 1
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "📊 Total Trades",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "tradingbot_trades_total",
+            "legendFormat": "Total Trades"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 10},
+                {"color": "green", "value": 100}
+              ]
+            },
+            "unit": "short",
+            "decimals": 0
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "🔥 Consecutive Wins",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "tradingbot_consecutive_wins",
+            "legendFormat": "Consecutive Wins"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "orange", "value": 3},
+                {"color": "green", "value": 7}
+              ]
+            },
+            "unit": "short",
+            "decimals": 0
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0}
+      },
+      {
+        "id": 5,
+        "title": "📈 PnL Over Time",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "tradingbot_pnl_total",
+            "legendFormat": "Cumulative PnL"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 3,
+              "fillOpacity": 20,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "showPoints": "auto",
+              "pointSize": 5,
+              "stacking": {
+                "mode": "none",
+                "group": "A"
+              },
+              "axisLabel": "",
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "yAxes": [
+          {
+            "label": "PnL ($)",
+            "min": null
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "📊 Win Rate Trend",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "tradingbot_win_rate_percent",
+            "legendFormat": "Win Rate %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 3,
+              "fillOpacity": 20,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "showPoints": "auto",
+              "pointSize": 5,
+              "stacking": {
+                "mode": "none",
+                "group": "A"
+              },
+              "axisLabel": "",
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "yAxes": [
+          {
+            "label": "Win Rate %",
+            "min": 0,
+            "max": 100
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 7,
+        "title": "📅 Daily Trading Volume",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "increase(tradingbot_trades_total[24h])",
+            "legendFormat": "Trades Today"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "bars",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 1,
+              "fillOpacity": 80,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {
+                "mode": "none",
+                "group": "A"
+              },
+              "axisLabel": "",
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "yAxes": [
+          {
+            "label": "Number of Trades",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 8,
+        "title": "💹 Profit vs Loss Distribution",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "tradingbot_trades_profitable_total",
+            "legendFormat": "Profitable Trades"
+          },
+          {
+            "expr": "tradingbot_trades_loss_total",
+            "legendFormat": "Loss Trades"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      },
+      {
+        "id": 9,
+        "title": "🎲 Risk/Reward Analysis",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "tradingbot_average_risk_reward_ratio",
+            "legendFormat": "Avg R:R Ratio"
+          },
+          {
+            "expr": "tradingbot_best_risk_reward_ratio",
+            "legendFormat": "Best R:R Ratio"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "showPoints": "auto",
+              "pointSize": 5,
+              "stacking": {
+                "mode": "none",
+                "group": "A"
+              },
+              "axisLabel": "",
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "yAxes": [
+          {
+            "label": "Risk/Reward Ratio",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 10,
+        "title": "📱 Trading Session Activity",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "sum by (session) (increase(tradingbot_trades_total[1h]))",
+            "legendFormat": "{{session}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+      },
+      {
+        "id": 11,
+        "title": "🏆 Top Performing Assets",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "topk(10, sum by (ticker) (tradingbot_pnl_by_ticker))",
+            "legendFormat": "{{ticker}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": -1000000},
+                {"color": "orange", "value": 0},
+                {"color": "green", "value": 1000000}
+              ]
+            },
+            "unit": "currencyUSD",
+            "decimals": 2
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32}
+      },
+      {
+        "id": 12,
+        "title": "📊 Trading Performance Summary",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "tradingbot_trades_total",
+            "legendFormat": "Total Trades"
+          },
+          {
+            "expr": "tradingbot_trades_profitable_total",
+            "legendFormat": "Profitable Trades"
+          },
+          {
+            "expr": "tradingbot_trades_loss_total",
+            "legendFormat": "Loss Trades"
+          },
+          {
+            "expr": "tradingbot_win_rate_percent",
+            "legendFormat": "Win Rate %"
+          },
+          {
+            "expr": "tradingbot_pnl_total",
+            "legendFormat": "Total PnL"
+          },
+          {
+            "expr": "tradingbot_average_trade_size",
+            "legendFormat": "Avg Trade Size"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 40}
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "time_range",
+          "type": "interval",
+          "query": "1m,5m,10m,30m,1h,6h,12h,1d,7d,30d",
+          "current": {
+            "value": "1h",
+            "text": "1h"
+          }
+        },
+        {
+          "name": "asset",
+          "type": "query",
+          "query": "label_values(tradingbot_trades_total, ticker)",
+          "current": {
+            "value": "All",
+            "text": "All Assets"
+          }
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Big Wins",
+          "datasource": "Prometheus",
+          "expr": "tradingbot_pnl_total > 10000",
+          "titleFormat": "Big Win!",
+          "textFormat": "PnL exceeded $10,000"
+        },
+        {
+          "name": "High Win Rate",
+          "datasource": "Prometheus",
+          "expr": "tradingbot_win_rate_percent > 80",
+          "titleFormat": "Excellent Performance",
+          "textFormat": "Win rate above 80%"
+        }
+      ]
+    }
+  }
+}

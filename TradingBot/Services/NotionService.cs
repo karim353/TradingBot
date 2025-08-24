@@ -278,7 +278,8 @@ namespace TradingBot.Services
             Trade trade = new Trade
             {
                 NotionPageId = page.GetProperty("id").GetString() ?? string.Empty,
-                Date = DateTime.Parse(props.GetProperty("Date").GetProperty("date").GetProperty("start").GetString() ?? DateTime.UtcNow.ToString())
+                Date = DateTime.Parse(props.GetProperty("Date").GetProperty("date").GetProperty("start").GetString() ?? DateTime.UtcNow.ToString()),
+                Comment = ""
             };
 
             // Безопасное извлечение тикера с проверкой на null

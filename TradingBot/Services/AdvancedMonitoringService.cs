@@ -135,7 +135,7 @@ namespace TradingBot.Services
             }
         }
 
-        public async Task StopAsync(CancellationToken cancellationToken)
+        public Task StopAsync(CancellationToken cancellationToken)
         {
             try
             {
@@ -150,6 +150,8 @@ namespace TradingBot.Services
             {
                 _logger.LogError(ex, "Ошибка остановки расширенного мониторинга");
             }
+            
+            return Task.CompletedTask;
         }
 
         public void TrackCustomMetric(string name, double value, Dictionary<string, string>? labels = null)
@@ -298,7 +300,7 @@ namespace TradingBot.Services
             }
         }
 
-        public async Task<bool> IsHealthyAsync()
+        public Task<bool> IsHealthyAsync()
         {
             try
             {
@@ -308,12 +310,12 @@ namespace TradingBot.Services
                 // Обновляем Prometheus метрику здоровья
                 _systemHealthGauge.Set(isHealthy ? 100 : 0);
 
-                return isHealthy;
+                return Task.FromResult(isHealthy);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Ошибка проверки здоровья системы");
-                return false;
+                return Task.FromResult(false);
             }
         }
 

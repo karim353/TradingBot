@@ -220,7 +220,7 @@ namespace TradingBot.Services
             await Task.Delay(100); // Имитация отправки
         }
 
-        private async Task<bool> CanSendNotificationAsync(long userId)
+        private Task<bool> CanSendNotificationAsync(long userId)
         {
             var now = DateTime.Now;
             
@@ -228,7 +228,7 @@ namespace TradingBot.Services
             if (_notificationsThisHour.TryGetValue(userId, out var count) && count >= _settings.MaxNotificationsPerHour)
             {
                 _logger.LogDebug("Достигнут лимит уведомлений в час для пользователя {UserId}", userId);
-                return false;
+                return Task.FromResult(false);
             }
 
             // Проверяем время последнего уведомления (минимум 1 минута между уведомлениями)
@@ -237,11 +237,11 @@ namespace TradingBot.Services
                 if (now - lastTime < TimeSpan.FromMinutes(1))
                 {
                     _logger.LogDebug("Слишком частое уведомление для пользователя {UserId}", userId);
-                    return false;
+                    return Task.FromResult(false);
                 }
             }
 
-            return true;
+            return Task.FromResult(true);
         }
 
         private void UpdateNotificationCounters(long userId)

@@ -26,10 +26,10 @@ namespace TradingBot.Services
         private readonly ILogger<HealthCheckService> _logger;
         private readonly string _connectionString;
 
-        public HealthCheckService(ILogger<HealthCheckService> logger, string connectionString)
+        public HealthCheckService(ILogger<HealthCheckService> logger)
         {
             _logger = logger;
-            _connectionString = connectionString;
+            _connectionString = "Data Source=trades.db";
         }
 
         public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
