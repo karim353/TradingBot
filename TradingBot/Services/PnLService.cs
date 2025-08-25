@@ -7,70 +7,24 @@ using System.Globalization;
 using Tesseract;
 using TradingBot.Models;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
-using System.Runtime.InteropServices;
 
 namespace TradingBot.Services
 {
     public class PnLService
     {
-        private readonly IConfiguration _configuration;
-        private readonly ILogger<PnLService> _logger;
-        private TesseractEngine? _engine;
+        private readonly TesseractEngine _engine;
         private readonly object _lockObj = new object();
-        private readonly bool _ocrEnabled;
 
-        public PnLService(IConfiguration config, ILogger<PnLService> logger)
+        public PnLService(IConfiguration config)
         {
-            _configuration = config;
-            _logger = logger;
-
-            // Allow disabling OCR via configuration; default to true on Windows, false on non-Windows to avoid missing native libs by default
-            bool defaultEnabled = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-            _ocrEnabled = config.GetValue("Tesseract:Enabled", defaultEnabled);
-            if (!_ocrEnabled)
-            {
-                _logger.LogInformation("OCR (Tesseract) is disabled via configuration. PnL extraction from images will be skipped.");
-            }
+            string tessDataPath = config["Tesseract:DataPath"] ?? "./tessdata";
+            _engine = new TesseractEngine(tessDataPath, "eng", EngineMode.Default);
         }
 
         public PnLData ExtractFromImage(Stream imageStream)
         {
             lock (_lockObj)
             {
-                if (!_ocrEnabled)
-                {
-                    _logger.LogWarning("OCR is disabled. Returning empty PnL data.");
-                    return new PnLData
-                    {
-                        Ticker = string.Empty,
-                        PnLPercent = null,
-                        Close = null,
-                        Open = null,
-                        Direction = string.Empty,
-                        TradeDate = DateTime.Now,
-                        UserName = "unknown",
-                        ReferralCode = "none"
-                    };
-                }
-
-                EnsureEngineInitialized();
-                if (_engine == null)
-                {
-                    _logger.LogError("Tesseract engine is not available. Returning empty PnL data.");
-                    return new PnLData
-                    {
-                        Ticker = string.Empty,
-                        PnLPercent = null,
-                        Close = null,
-                        Open = null,
-                        Direction = string.Empty,
-                        TradeDate = DateTime.Now,
-                        UserName = "unknown",
-                        ReferralCode = "none"
-                    };
-                }
-
                 byte[] imageData;
                 using (var ms = new MemoryStream())
                 {
@@ -175,58 +129,91 @@ namespace TradingBot.Services
             }
         }
 
-        private void EnsureEngineInitialized()
+        /// <summary>
+        /// Извлекает торговые данные из произвольного текста пользователя (быстрое добавление)
+        /// Поддерживаемые примеры:
+        ///  - "BTC/USDT long +2.3%"
+        ///  - "ETHUSDT short -10%"
+        ///  - "AAPL buy 1.2%"
+        ///  - "BTC/USDT +25$"
+        /// </summary>
+        public PnLData ExtractFromText(string rawText)
         {
-            if (_engine != null)
-                return;
-
-            try
+            if (string.IsNullOrWhiteSpace(rawText))
             {
-                string? configuredPath = _configuration["Tesseract:DataPath"];
-                string dataPath = ResolveTessdataPath(configuredPath);
-                _engine = new TesseractEngine(dataPath, "eng", EngineMode.Default);
-                _logger.LogInformation("Tesseract engine initialized with tessdata at {DataPath}", dataPath);
-            }
-            catch (DllNotFoundException ex)
-            {
-                _logger.LogError(ex, "Native libraries for Tesseract/Leptonica not found. Install system packages or disable OCR. On Fedora: 'sudo dnf install -y tesseract tesseract-langpack-eng'.");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to initialize Tesseract engine. OCR will be unavailable.");
-            }
-        }
-
-        private string ResolveTessdataPath(string? configuredPath)
-        {
-            if (!string.IsNullOrWhiteSpace(configuredPath) && Directory.Exists(configuredPath))
-                return configuredPath;
-
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                var windowsCandidates = new[]
+                return new PnLData
                 {
-                    @"C:\\Program Files\\Tesseract-OCR\\tessdata",
-                    @"C:\\Program Files (x86)\\Tesseract-OCR\\tessdata"
+                    Ticker = string.Empty,
+                    PnLPercent = null,
+                    Close = null,
+                    Open = null,
+                    Direction = string.Empty,
+                    TradeDate = DateTime.Now,
+                    UserName = "unknown",
+                    ReferralCode = "none"
                 };
-                var foundWin = windowsCandidates.FirstOrDefault(Directory.Exists);
-                if (!string.IsNullOrEmpty(foundWin)) return foundWin;
-            }
-            else
-            {
-                var linuxCandidates = new[]
-                {
-                    "/usr/share/tessdata",
-                    "/usr/share/tesseract-ocr/4.00/tessdata",
-                    "/usr/share/tesseract-ocr/tessdata",
-                    "/usr/local/share/tessdata"
-                };
-                var foundLinux = linuxCandidates.FirstOrDefault(Directory.Exists);
-                if (!string.IsNullOrEmpty(foundLinux)) return foundLinux;
             }
 
-            // Fallback to local folder
-            return "./tessdata";
+            string text = rawText.Trim();
+
+            // Поиск тикера (разрешаем форматы TICKER/USDT, TICKERUSDT, TICKER-USD и просто TICKER)
+            string ticker = string.Empty;
+            var tickerMatch = Regex.Match(text, @"([A-Z]{2,12}(?:\s*/\s*|\s*-\s*|)USDT|[A-Z]{2,12}(?:\s*/\s*|\s*-\s*|)USD|[A-Z]{2,12}/BTC|BTC/USDT|ETH/USDT|[A-Z]{2,12})", RegexOptions.IgnoreCase);
+            if (tickerMatch.Success)
+            {
+                ticker = tickerMatch.Value.ToUpper()
+                    .Replace(" ", "")
+                    .Replace("-", "/");
+
+                if (!ticker.Contains('/') && (ticker.EndsWith("USDT") || ticker.EndsWith("USD") || ticker.EndsWith("BTC")))
+                {
+                    if (ticker.EndsWith("USDT")) ticker = ticker.Replace("USDT", "/USDT");
+                    else if (ticker.EndsWith("USD")) ticker = ticker.Replace("USD", "/USD");
+                    else if (ticker.EndsWith("BTC")) ticker = ticker.Replace("BTC", "/BTC");
+                }
+            }
+
+            // Поиск направления
+            string direction = string.Empty;
+            var upper = text.ToUpperInvariant();
+            if (upper.Contains("LONG") || upper.Contains("BUY")) direction = "Long";
+            else if (upper.Contains("SHORT") || upper.Contains("SELL")) direction = "Short";
+
+            // Поиск PnL (в процентах или в валюте)
+            decimal? pnlPercent = null;
+            var pnlPatterns = new[]
+            {
+                @"([+\-]?\d{1,6}(?:[\.,]\d{1,4})?)\s*%",
+                @"PnL[\s:]*([+\-]?\d{1,6}(?:[\.,]\d{1,4})?)\s*%?",
+                @"P&L[\s:]*([+\-]?\d{1,6}(?:[\.,]\d{1,4})?)\s*%?",
+                @"([+\-]?\d{1,6}(?:[\.,]\d{1,4})?)\s*(?:USDT|USD|\$)"
+            };
+
+            foreach (var pattern in pnlPatterns)
+            {
+                var m = Regex.Match(text, pattern, RegexOptions.IgnoreCase);
+                if (m.Success)
+                {
+                    var raw = m.Groups[1].Value.Replace(',', '.');
+                    if (decimal.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var val))
+                    {
+                        pnlPercent = val;
+                        break;
+                    }
+                }
+            }
+
+            return new PnLData
+            {
+                Ticker = ticker,
+                PnLPercent = pnlPercent,
+                Direction = direction,
+                Open = null,
+                Close = null,
+                TradeDate = DateTime.Now,
+                UserName = "unknown",
+                ReferralCode = "none"
+            };
         }
     }
 }

@@ -296,4 +296,116 @@ namespace TradingBot.Services
             }
         }
     }
+
+    /// <summary>
+    /// Гибридный кэш: пытается Redis, при ошибках/недоступности использует MemoryCache.
+    /// </summary>
+    public class HybridCacheService : ICacheService
+    {
+        private readonly ICacheService _primary;
+        private readonly ICacheService _fallback;
+        private readonly ILogger<HybridCacheService> _logger;
+
+        public HybridCacheService(IRedisCacheService primaryRedis, IMemoryCache memoryCache, ILogger<HybridCacheService> logger)
+        {
+            _primary = (ICacheService)primaryRedis;
+            _fallback = new MemoryCacheService(memoryCache, logger as ILogger<MemoryCacheService> ?? new LoggerFactory().CreateLogger<MemoryCacheService>());
+            _logger = logger;
+        }
+
+        public async Task<T?> GetAsync<T>(string key)
+        {
+            try
+            {
+                var val = await _primary.GetAsync<T>(key);
+                if (val == null)
+                {
+                    return await _fallback.GetAsync<T>(key);
+                }
+                return val;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Primary cache failed on Get, falling back to memory.");
+                return await _fallback.GetAsync<T>(key);
+            }
+        }
+
+        public async Task SetAsync<T>(string key, T value, TimeSpan? expiration = null)
+        {
+            try
+            {
+                await _primary.SetAsync(key, value, expiration);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Primary cache failed on Set, writing to memory.");
+            }
+            finally
+            {
+                try { await _fallback.SetAsync(key, value, expiration); } catch { }
+            }
+        }
+
+        public async Task RemoveAsync(string key)
+        {
+            try { await _primary.RemoveAsync(key); } catch (Exception ex) { _logger.LogWarning(ex, "Primary cache failed on Remove"); }
+            try { await _fallback.RemoveAsync(key); } catch { }
+        }
+
+        public async Task<bool> ExistsAsync(string key)
+        {
+            try
+            {
+                var exists = await _primary.ExistsAsync(key);
+                if (!exists)
+                {
+                    return await _fallback.ExistsAsync(key);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Primary cache failed on Exists, checking memory.");
+                return await _fallback.ExistsAsync(key);
+            }
+        }
+
+        public async Task<long> IncrementAsync(string key, long value = 1)
+        {
+            try
+            {
+                return await _primary.IncrementAsync(key, value);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Primary cache failed on Increment, using memory.");
+                return await _fallback.IncrementAsync(key, value);
+            }
+        }
+
+        public async Task<Dictionary<string, string>> GetHashAsync(string key)
+        {
+            try
+            {
+                var dict = await _primary.GetHashAsync(key);
+                if (dict == null || dict.Count == 0)
+                {
+                    return await _fallback.GetHashAsync(key);
+                }
+                return dict;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Primary cache failed on GetHash, using memory.");
+                return await _fallback.GetHashAsync(key);
+            }
+        }
+
+        public async Task SetHashAsync(string key, Dictionary<string, string> values)
+        {
+            try { await _primary.SetHashAsync(key, values); } catch (Exception ex) { _logger.LogWarning(ex, "Primary cache failed on SetHash"); }
+            try { await _fallback.SetHashAsync(key, values); } catch { }
+        }
+    }
 }

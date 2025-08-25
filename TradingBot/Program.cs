@@ -111,7 +111,7 @@ var host = Host.CreateDefaultBuilder(args)
                 options.Configuration = redisConnection;
             });
             services.AddScoped<IRedisCacheService, RedisCacheService>();
-            services.AddScoped<ICacheService, RedisCacheService>();
+            services.AddScoped<ICacheService, HybridCacheService>();
         }
         else
         {
@@ -135,15 +135,17 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddScoped<PersonalNotionService>();
         services.AddScoped<NotionSettingsService>();
 
-        
-        // Добавляем NotionService с конфигурацией
-        services.AddScoped<NotionService>(provider =>
+        // Регистрируем NotionService только если настроен DatabaseId
+        if (!string.IsNullOrWhiteSpace(config["Notion:DatabaseId"]))
         {
-            var httpClient = provider.GetRequiredService<IHttpClientFactory>().CreateClient("NotionClient");
-            var databaseId = config["Notion:DatabaseId"] ?? throw new Exception("Notion DatabaseId not configured.");
-            var logger = provider.GetRequiredService<ILogger<NotionService>>();
-            return new NotionService(httpClient, databaseId, logger);
-        });
+            services.AddScoped<NotionService>(provider =>
+            {
+                var httpClient = provider.GetRequiredService<IHttpClientFactory>().CreateClient("NotionClient");
+                var databaseId = config["Notion:DatabaseId"]!;
+                var logger = provider.GetRequiredService<ILogger<NotionService>>();
+                return new NotionService(httpClient, databaseId, logger);
+            });
+        }
         
 
         

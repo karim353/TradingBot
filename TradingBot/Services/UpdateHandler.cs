@@ -745,13 +745,32 @@ namespace TradingBot.Services
 
                             var data = _pnlService.ExtractFromImage(stream);
                             _logger.LogInformation($"📊 OCR result: Ticker={data.Ticker}, Direction={data.Direction}, PnL={data.PnLPercent}");
+                            // Fallback: try to parse ticker/direction/PnL from caption or filename when OCR didn't produce enough
+                            if (string.IsNullOrWhiteSpace(data.Ticker))
+                            {
+                                var captionText = message.Caption ?? string.Empty;
+                                var fileNameText = message.Document?.FileName ?? string.Empty;
+                                var combinedText = $"{captionText} {fileNameText}".Trim();
+                                if (!string.IsNullOrWhiteSpace(combinedText))
+                                {
+                                    var parsed = _pnlService.ExtractFromText(combinedText);
+                                    if (!string.IsNullOrWhiteSpace(parsed.Ticker))
+                                        data.Ticker = parsed.Ticker;
+                                    if (string.IsNullOrWhiteSpace(data.Direction) && !string.IsNullOrWhiteSpace(parsed.Direction))
+                                        data.Direction = parsed.Direction;
+                                    if (!data.PnLPercent.HasValue && parsed.PnLPercent.HasValue)
+                                        data.PnLPercent = parsed.PnLPercent;
+                                    _logger.LogInformation($"📊 Fallback parsed from text: Ticker={data.Ticker}, Direction={data.Direction}, PnL={data.PnLPercent}");
+                                }
+                            }
 
                             string tradeId = CreateShortTradeId(Guid.NewGuid().ToString());
+                            var normalizedTicker = (data.Ticker ?? string.Empty).Trim().ToUpperInvariant().Replace(" ", string.Empty).Replace("-", "/");
                             var trade = new Trade
                             {
                                 UserId = userId,
                                 Date = data.TradeDate ?? DateTime.Now,
-                                Ticker = data.Ticker ?? string.Empty,
+                                Ticker = normalizedTicker,
                                 Direction = data.Direction ?? string.Empty,
                                 PnL = data.PnLPercent ?? 0m,
                                 Comment = ""
