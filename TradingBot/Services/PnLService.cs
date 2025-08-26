@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Globalization;
 using Tesseract;
+using Microsoft.Extensions.Logging;
 using TradingBot.Models;
 using Microsoft.Extensions.Configuration;
 
@@ -12,29 +13,60 @@ namespace TradingBot.Services
 {
     public class PnLService : IDisposable
     {
-        private readonly TesseractEngine _engine;
+        private readonly TesseractEngine? _engine;
         private readonly object _lockObj = new object();
+        private readonly bool _ocrEnabled;
+        private readonly ILogger<PnLService> _logger;
 
-        public PnLService(IConfiguration config)
+        public PnLService(IConfiguration config, ILogger<PnLService> logger)
         {
-            string tessDataPath = config["Tesseract:DataPath"] ?? "./tessdata";
-            _engine = new TesseractEngine(tessDataPath, "eng", EngineMode.Default);
+            _logger = logger;
+            _ocrEnabled = bool.TryParse(config["Tesseract:Enabled"], out var enabled) && enabled;
+
+            if (_ocrEnabled)
+            {
+                try
+                {
+                    string tessDataPath = config["Tesseract:DataPath"] ?? "./tessdata";
+                    _engine = new TesseractEngine(tessDataPath, "eng", EngineMode.Default);
+                }
+                catch (DllNotFoundException ex)
+                {
+                    _logger.LogWarning(ex, "Tesseract OCR библиотеки не найдены. OCR будет отключен.");
+                    _ocrEnabled = false;
+                    _engine = null;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Не удалось инициализировать Tesseract. OCR будет отключен.");
+                    _ocrEnabled = false;
+                    _engine = null;
+                }
+            }
         }
 
         public PnLData ExtractFromImage(Stream imageStream)
         {
             lock (_lockObj)
             {
-                byte[] imageData;
-                using (var ms = new MemoryStream())
+                string text = string.Empty;
+                if (_ocrEnabled && _engine != null)
                 {
-                    imageStream.CopyTo(ms);
-                    imageData = ms.ToArray();
+                    byte[] imageData;
+                    using (var ms = new MemoryStream())
+                    {
+                        imageStream.CopyTo(ms);
+                        imageData = ms.ToArray();
+                    }
+                    using var pix = Pix.LoadFromMemory(imageData);
+                    using var page = _engine.Process(pix);
+                    text = page.GetText();
                 }
-                using var pix = Pix.LoadFromMemory(imageData);
-                using var page = _engine.Process(pix);
-                string text = page.GetText();
-                File.WriteAllText("last_ocr.txt", text); // Для отладки
+                else
+                {
+                    _logger.LogDebug("OCR отключен — возврат пустых данных PnL");
+                }
+                try { File.WriteAllText("last_ocr.txt", text); } catch { }
 
                 var lines = text.Split('\n').Select(l => l.Trim()).Where(l => !string.IsNullOrEmpty(l)).ToList();
 

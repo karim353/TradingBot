@@ -264,6 +264,28 @@ EXPOSE 80
 ENTRYPOINT ["dotnet", "TradingBot.dll"]
 ```
 
+### Кроссплатформенная публикация (.NET 8)
+
+```bash
+# Windows (PowerShell)
+dotnet publish -c Release -r win-x64 --self-contained -o ./publish/win
+
+# Linux
+dotnet publish -c Release -r linux-x64 --self-contained -o ./publish/linux
+
+# Запуск
+# Windows
+./publish/win/TradingBot.exe
+
+# Linux (дать права и запустить)
+chmod +x ./publish/linux/TradingBot
+./publish/linux/TradingBot
+```
+
+Примечания:
+- Используется относительный путь к Tesseract `tessdata`, который работает и на Windows, и на Linux.
+- URL сервера настраивается через ASPNETCORE_URLS (например, `http://0.0.0.0:5000`).
+
 ### Kubernetes
 ```yaml
 apiVersion: apps/v1

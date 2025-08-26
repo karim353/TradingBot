@@ -18,24 +18,38 @@ using TradingBot.Models;
 using Microsoft.Data.Sqlite;
 using System.Collections.Generic;
 using Prometheus;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Resources;
+using Microsoft.AspNetCore.ResponseCompression;
 
 
 var host = Host.CreateDefaultBuilder(args)
     .ConfigureWebHostDefaults(webBuilder =>
     {
-        webBuilder.UseUrls("http://localhost:5000");
+        // URL задаётся через ASPNETCORE_URLS или Kestrel-конфиг; localhost по умолчанию
         webBuilder.Configure(app =>
         {
             // Логируем запуск веб-сервера
             var logger = app.ApplicationServices.GetRequiredService<ILogger<Program>>();
             logger.LogInformation("🌐 Настройка веб-сервера...");
             
+            // Сжатие ответов
+            app.UseResponseCompression();
+
             // Статические файлы для веб-интерфейса
             app.UseDefaultFiles();
-            app.UseStaticFiles();
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                OnPrepareResponse = ctx =>
+                {
+                    ctx.Context.Response.Headers["Cache-Control"] = "public,max-age=86400";
+                }
+            });
             
             logger.LogInformation("🌐 Статические файлы настроены");
             
+            app.UseHttpMetrics();
             app.UseRouting();
             
             app.UseEndpoints(endpoints =>
@@ -43,26 +57,44 @@ var host = Host.CreateDefaultBuilder(args)
                 // Простые эндпоинты для тестирования
                 endpoints.MapGet("/test", () => "Test endpoint works!");
                 
-                // Эндпоинт для метрик Prometheus
-                endpoints.MapGet("/metrics", async context =>
+                // Экспорт метрик Prometheus
+                endpoints.MapMetrics();
+                
+                // Liveness (просто жив)
+                endpoints.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
                 {
-                    logger.LogInformation("📊 Запрос метрик от {RemoteIpAddress}", context.Connection.RemoteIpAddress);
-                    context.Response.ContentType = "text/plain; version=0.0.4; charset=utf-8";
-                    var metrics = Metrics.DefaultRegistry.ToString() ?? string.Empty;
-                    await context.Response.WriteAsync(metrics);
-                    logger.LogInformation("📊 Метрики отправлены, размер: {Size} символов", metrics.Length);
+                    Predicate = _ => false
+                });
+                // Readiness (готовность зависимостей)
+                endpoints.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+                {
+                    Predicate = reg => reg.Tags.Contains("readiness")
                 });
                 
-                // Эндпоинт для health checks
+                // Back-compat общий health
                 endpoints.MapGet("/health", async context =>
                 {
-                    logger.LogInformation("🏥 Health check от {RemoteIpAddress}", context.Connection.RemoteIpAddress);
-                    context.Response.ContentType = "application/json";
-                    var healthResponse = "{\"status\":\"healthy\",\"timestamp\":\"" + DateTime.UtcNow.ToString("O") + "\"}";
-                    await context.Response.WriteAsync(healthResponse);
-                    logger.LogInformation("🏥 Health check отправлен");
+                    context.Response.Redirect("/health/ready");
                 });
                 
+                // Telegram webhook endpoint (prod)
+                var config = app.ApplicationServices.GetRequiredService<IConfiguration>();
+                if (bool.TryParse(config["Telegram:UseWebhook"], out var useWebhook) && useWebhook)
+                {
+                    endpoints.MapPost("/telegram/webhook", async context =>
+                    {
+                        var bot = context.RequestServices.GetRequiredService<Telegram.Bot.ITelegramBotClient>();
+                        using var scope = context.RequestServices.CreateScope();
+                        var handler = scope.ServiceProvider.GetRequiredService<UpdateHandler>();
+                        var update = await System.Text.Json.JsonSerializer.DeserializeAsync<Telegram.Bot.Types.Update>(context.Request.Body);
+                        if (update != null)
+                        {
+                            await handler.HandleUpdateAsync(bot, update, context.RequestAborted);
+                        }
+                        context.Response.StatusCode = 200;
+                    });
+                }
+
                 // Корневой эндпоинт - перенаправляем на дашборд
                 endpoints.MapGet("/", async context =>
                 {
@@ -82,6 +114,24 @@ var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) =>
     {
         IConfiguration config = context.Configuration;
+        // OpenTelemetry (Traces + Metrics)
+        services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddService("TradingBot"))
+            .WithTracing(tracing => tracing
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddOtlpExporter())
+            .WithMetrics(metrics => metrics
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddOtlpExporter());
+
+        // Response compression
+        services.AddResponseCompression(options =>
+        {
+            options.EnableForHttps = true;
+            options.Providers.Add<GzipCompressionProvider>();
+        });
 
         string? botToken = config["Telegram:BotToken"];
         if (string.IsNullOrWhiteSpace(botToken))
@@ -99,6 +149,8 @@ var host = Host.CreateDefaultBuilder(args)
         // Общие зависимости
         services.AddSingleton<PnLService>();
         services.AddSingleton<UIManager>();
+        // Всегда регистрируем IMemoryCache (нужно для RateLimitingService и др.)
+        services.AddMemoryCache();
         // Redis кеширование
         bool redisEnabled = config.GetValue<bool>("Caching:Redis:Enabled", false);
         if (redisEnabled)
@@ -114,15 +166,16 @@ var host = Host.CreateDefaultBuilder(args)
         else
         {
             // Fallback на MemoryCache
-            services.AddMemoryCache();
             services.AddScoped<ICacheService, MemoryCacheService>();
         }
         
-        // Всегда регистрируем IMemoryCache для совместимости
-        services.AddMemoryCache();
-        
         services.AddScoped<TradeRepository>();
-        services.AddScoped<UserSettingsService>();
+        services.AddScoped<UserSettingsService>(provider =>
+        {
+            var logger = provider.GetRequiredService<ILogger<UserSettingsService>>();
+            var personalNotion = provider.GetRequiredService<PersonalNotionService>();
+            return new UserSettingsService(logger, connection, personalNotion);
+        });
 
         // HTTP клиенты для Notion API с Polly политиками
         services.AddNotionHttpClients();
@@ -163,7 +216,11 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddHostedService<HealthMonitoringService>();
         
         // Регистрация объединенных сервисов
-        services.AddHostedService<BotService>();
+        bool useWebhook = bool.TryParse(config["Telegram:UseWebhook"], out var wh) && wh;
+        if (!useWebhook)
+        {
+            services.AddHostedService<BotService>();
+        }
         services.AddHostedService<ReportService>();
         
         // Сервис сбора системных метрик
@@ -171,8 +228,8 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddHostedService<MetricsUpdateService>();
         
         // Новые сервисы мониторинга и уведомлений
-        services.AddScoped<INotificationService, NotificationService>();
-        services.AddScoped<IPerformanceMetricsService, PerformanceMetricsService>();
+        services.AddSingleton<INotificationService, NotificationService>();
+        services.AddSingleton<IPerformanceMetricsService, PerformanceMetricsService>();
         services.AddScoped<IAdvancedMonitoringService, AdvancedMonitoringService>();
         
         // Конфигурация новых сервисов
@@ -181,10 +238,10 @@ var host = Host.CreateDefaultBuilder(args)
         services.Configure<MonitoringSettings>(
             config.GetSection("MonitoringSettings"));
         
-        // Добавляем health checks
+        // Добавляем health checks: liveness / readiness
         services.AddHealthChecks()
-            .AddCheck<HealthCheckService>("database_health", tags: new[] { "database", "critical" })
-            .AddDbContextCheck<TradeContext>("ef_core_health", tags: new[] { "database", "ef_core" });
+            .AddCheck<HealthCheckService>("database_health", tags: new[] { "readiness", "database" })
+            .AddDbContextCheck<TradeContext>("ef_core_health", tags: new[] { "readiness", "ef_core" });
 
         bool useNotion = bool.TryParse(config["UseNotion"], out var flag) && flag;
 
@@ -199,8 +256,8 @@ var host = Host.CreateDefaultBuilder(args)
             services.AddScoped<ITradeStorage, SQLiteTradeStorage>();
         }
 
-        // UpdateHandler с зависимостями
-        services.AddSingleton<UpdateHandler>(provider =>
+        // UpdateHandler со scoped временем жизни
+        services.AddScoped<UpdateHandler>(provider =>
         {
             var tradeStorage = provider.GetRequiredService<ITradeStorage>();
             var pnlService = provider.GetRequiredService<PnLService>();
@@ -246,57 +303,21 @@ using (var scope = host.Services.CreateScope())
         logger.LogWarning(ex, "Не удалось удалить webhook. Продолжаем запуск.");
     }
 
-    // 2) Пробуем применить миграции (не падаем, если что-то не так)
+    // 2) Применяем миграции единообразно
     try
     {
         var db = sp.GetRequiredService<TradeContext>();
-        
-        // Проверяем, существует ли база данных
-        if (db.Database.CanConnect())
-        {
-            // Если база существует, проверяем схему
-            var pendingMigrations = await db.Database.GetPendingMigrationsAsync();
-            if (pendingMigrations.Any())
-            {
-                try
-                {
-                    await db.Database.MigrateAsync();
-                    logger.LogInformation("EF Core миграции применены успешно.");
-                }
-                catch (Exception migrationEx) when (migrationEx.Message.Contains("duplicate column name"))
-                {
-                    logger.LogWarning("Обнаружены конфликты миграций. Переходим к ручной синхронизации схемы.");
-                    await EnsureDatabaseSchemaAsync(db, logger);
-                    logger.LogInformation("Схема базы данных синхронизирована вручную после конфликта миграций.");
-                }
-            }
-            else
-            {
-                logger.LogInformation("База данных уже актуальна, миграции не требуются.");
-            }
-        }
-        else
-        {
-            // Если база не существует, создаем её
-            await db.Database.EnsureCreatedAsync();
-            logger.LogInformation("База данных создана успешно.");
-        }
+        await db.Database.MigrateAsync();
+        logger.LogInformation("EF Core миграции применены успешно (или отсутствуют).");
+    }
+    catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.Message.Contains("duplicate column name"))
+    {
+        logger.LogWarning(ex, "Обнаружены дублирующиеся колонки при миграции. Продолжаем запуск приложения.");
     }
     catch (Exception ex)
     {
-        logger.LogWarning(ex, "Ошибка при миграции базы данных. Пытаемся синхронизировать схему вручную.");
-        
-        // Попробуем синхронизировать схему вручную
-        try
-        {
-            var db = sp.GetRequiredService<TradeContext>();
-            await EnsureDatabaseSchemaAsync(db, logger);
-            logger.LogInformation("Схема базы данных синхронизирована вручную.");
-        }
-        catch (Exception schemaEx)
-        {
-            logger.LogError(schemaEx, "Не удалось синхронизировать схему базы данных. Бот может работать некорректно.");
-        }
+        logger.LogError(ex, "Критическая ошибка при применении миграций EF Core.");
+        throw;
     }
 
 
@@ -304,75 +325,7 @@ using (var scope = host.Services.CreateScope())
 
 await host.RunAsync();
 
-static async Task EnsureDatabaseSchemaAsync(TradeContext ctx, ILogger logger)
-{
-    var requiredColumns = new Dictionary<string, string>
-    {
-        {"Account", "TEXT"},
-        {"Session", "TEXT"},
-        {"Position", "TEXT"},
-        {"Direction", "TEXT"},
-        {"Context", "TEXT"},
-        {"Setup", "TEXT"},
-        {"Emotions", "TEXT"},
-        {"EntryDetails", "TEXT"},
-        {"Note", "TEXT"},
-        {"Result", "TEXT"},
-        {"RR", "TEXT"},
-        {"Risk", "REAL"},
-        {"PnL", "REAL"},
-        {"NotionPageId", "TEXT"}
-    };
-
-    await using var conn = (SqliteConnection)ctx.Database.GetDbConnection();
-    if (conn.State != System.Data.ConnectionState.Open)
-        await conn.OpenAsync();
-
-    // Получаем список существующих колонок
-    var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    await using (var cmd = conn.CreateCommand())
-    {
-        cmd.CommandText = "PRAGMA table_info('Trades')";
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            var name = reader.GetString(1);
-            existingColumns.Add(name);
-        }
-    }
-
-    // Добавляем недостающие колонки
-    foreach (var column in requiredColumns)
-    {
-        if (existingColumns.Contains(column.Key))
-        {
-            logger.LogDebug($"Колонка {column.Key} уже существует, пропускаем.");
-            continue;
-        }
-
-        try
-        {
-            var alterSql = $"ALTER TABLE \"Trades\" ADD COLUMN \"{column.Key}\" {column.Value}";
-            if (column.Key == "PnL")
-                alterSql += " NOT NULL DEFAULT 0.0";
-            else
-                alterSql += " NULL";
-
-            await using var alterCmd = conn.CreateCommand();
-            alterCmd.CommandText = alterSql;
-            await alterCmd.ExecuteNonQueryAsync();
-            logger.LogInformation($"Добавлена колонка {column.Key} типа {column.Value}");
-        }
-        catch (Exception ex) when (ex.Message.Contains("duplicate column name"))
-        {
-            logger.LogInformation($"Колонка {column.Key} уже существует (игнорируем ошибку дублирования)");
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, $"Не удалось добавить колонку {column.Key}");
-        }
-    }
-}
+// Удалена ручная синхронизация схемы (EnsureDatabaseSchemaAsync)
 
 
 

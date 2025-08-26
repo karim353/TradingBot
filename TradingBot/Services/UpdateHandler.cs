@@ -716,7 +716,10 @@ namespace TradingBot.Services
                         return;
                     }
 
-                    _logger.LogInformation($"📩 Message from UserId={userId}, ChatId={chatId}: {(string.IsNullOrEmpty(text) ? "[non-text]" : text)}");
+                    using (_logger.BeginScope(new Dictionary<string, object> { ["userId"] = userId, ["chatId"] = chatId }))
+                    {
+                        _logger.LogInformation($"📩 Message from UserId={userId}, ChatId={chatId}: {(string.IsNullOrEmpty(text) ? "[non-text]" : text)}");
+                    }
                     var settings = await GetUserSettingsAsync(userId);
                     var state = await GetUserStateAsync(userId) ?? new UserState { Language = settings.Language };
 
@@ -724,6 +727,8 @@ namespace TradingBot.Services
                     if ((message.Photo?.Any() == true) || (message.Document != null && (message.Document.MimeType?.StartsWith("image/") ?? false)))
                     {
                         _logger.LogInformation($"📸 Processing image from UserId={userId}");
+                        // Индикатор прогресса OCR
+                        var progressMsg = await bot.SendMessage(chatId, _uiManager.GetText("processing_image", settings.Language), cancellationToken: cancellationToken);
                         try
                         {
                             var fileInfo = await bot.GetFile(message.Photo?.Last().FileId ?? message.Document!.FileId, cancellationToken);
@@ -774,6 +779,10 @@ namespace TradingBot.Services
                             await bot.SendMessage(chatId, _uiManager.GetText("error_processing_image", settings.Language),
                                 replyMarkup: _uiManager.GetErrorKeyboard(settings),
                                 cancellationToken: cancellationToken);
+                        }
+                        finally
+                        {
+                            try { await bot.EditMessageText(chatId, progressMsg.MessageId, _uiManager.GetText("processing_done", settings.Language), cancellationToken: cancellationToken); } catch { }
                         }
                         return;
                     }

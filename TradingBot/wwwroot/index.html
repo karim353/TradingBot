@@ -1,564 +1,97 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TradingBot Metrics Dashboard</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <style>
-        :root {
-            --primary-color: #6366f1;
-            --primary-dark: #4f46e5;
-            --secondary-color: #10b981;
-            --accent-color: #f59e0b;
-            --danger-color: #ef4444;
-            --warning-color: #f97316;
-            --success-color: #22c55e;
-            --bg-primary: #0f172a;
-            --bg-secondary: #1e293b;
-            --bg-card: #334155;
-            --text-primary: #f8fafc;
-            --text-secondary: #cbd5e1;
-            --border-color: #475569;
-            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
-            color: var(--text-primary);
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 0 20px;
-        }
-
-        /* Header */
-        .header {
-            background: rgba(30, 41, 59, 0.8);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid var(--border-color);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .header-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem 0;
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--primary-color);
-        }
-
-        .logo i {
-            font-size: 2rem;
-        }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            background: var(--bg-card);
-            border-radius: 20px;
-            border: 1px solid var(--border-color);
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--success-color);
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        /* Main Content */
-        .main-content {
-            padding: 2rem 0;
-        }
-
-        .page-title {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .page-subtitle {
-            font-size: 1.1rem;
-            color: var(--text-secondary);
-            margin-bottom: 2rem;
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        .stat-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 1.5rem;
-            box-shadow: var(--shadow);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-        }
-
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        }
-
-        .stat-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-
-        .stat-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            color: white;
-        }
-
-        .stat-icon.primary { background: var(--primary-color); }
-        .stat-icon.success { background: var(--success-color); }
-        .stat-icon.warning { background: var(--warning-color); }
-        .stat-icon.danger { background: var(--danger-color); }
-        .stat-icon.accent { background: var(--accent-color); }
-
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-
-        .stat-label {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .stat-change {
-            font-size: 0.8rem;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-weight: 500;
-        }
-
-        .stat-change.positive {
-            background: rgba(34, 197, 94, 0.2);
-            color: var(--success-color);
-        }
-
-        .stat-change.negative {
-            background: rgba(239, 68, 68, 0.2);
-            color: var(--danger-color);
-        }
-
-        /* Charts Section */
-        .charts-section {
-            margin-bottom: 2rem;
-        }
-
-        .section-title {
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            color: var(--text-primary);
-        }
-
-        .charts-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
-            gap: 1.5rem;
-        }
-
-        .chart-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 1.5rem;
-            box-shadow: var(--shadow);
-        }
-
-        .chart-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-
-        .chart-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .chart-controls {
-            display: flex;
-            gap: 8px;
-        }
-
-        .btn {
-            padding: 6px 12px;
-            border: 1px solid var(--border-color);
-            background: var(--bg-secondary);
-            color: var(--text-secondary);
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-size: 0.8rem;
-        }
-
-        .btn:hover {
-            background: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-
-        .btn.active {
-            background: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-
-        .chart-container {
-            position: relative;
-            height: 300px;
-        }
-
-        /* Real-time Updates */
-        .real-time-section {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 1.5rem;
-            box-shadow: var(--shadow);
-        }
-
-        .real-time-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-
-        .refresh-btn {
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .refresh-btn:hover {
-            background: var(--primary-dark);
-            transform: translateY(-1px);
-        }
-
-        .refresh-btn i {
-            transition: transform 0.3s ease;
-        }
-
-        .refresh-btn:hover i {
-            transform: rotate(180deg);
-        }
-
-        /* Responsive Design */
-        @media (max-width: 768px) {
-            .container {
-                padding: 0 15px;
-            }
-
-            .page-title {
-                font-size: 2rem;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .charts-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .chart-container {
-                height: 250px;
-            }
-
-            .header-content {
-                flex-direction: column;
-                gap: 1rem;
-            }
-        }
-
-        /* Loading Animation */
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: var(--primary-color);
-            animation: spin 1s ease-in-out infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Tooltip */
-        .tooltip {
-            position: absolute;
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            pointer-events: none;
-            z-index: 1000;
-            border: 1px solid var(--border-color);
-            box-shadow: var(--shadow);
-            opacity: 0;
-            transition: opacity 0.2s ease;
-        }
-
-        .tooltip.show {
-            opacity: 1;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TradingBot — Monitoring</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    html, body { height: 100%; }
+    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+    #bg3d { position: fixed; inset: 0; z-index: -1; }
+    .glass { backdrop-filter: blur(10px); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); }
+  </style>
 </head>
-<body>
-    <!-- Header -->
-    <header class="header">
-        <div class="container">
-            <div class="header-content">
-                <div class="logo">
-                    <i class="fas fa-chart-line"></i>
-                    <span>TradingBot Metrics</span>
-                </div>
-                <div class="status-indicator">
-                    <div class="status-dot"></div>
-                    <span>Система активна</span>
-                </div>
+<body class="min-h-full bg-slate-950 text-slate-100">
+  <canvas id="bg3d"></canvas>
+  <main class="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 py-12">
+    <div class="glass rounded-3xl p-10 shadow-2xl max-w-4xl w-full">
+      <div class="flex items-center gap-4">
+        <div class="h-12 w-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg"></div>
+        <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight">TradingBot Monitoring</h1>
+      </div>
+      <p class="mt-4 text-slate-300 leading-relaxed">
+        Живые метрики бота: latency, ошибки, нагрузка, активность пользователей и бизнес-показатели. Красивый и быстрый дашборд с анимацией и 3D-фоном.
+      </p>
+      <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <a href="/metrics-dashboard.html" class="group block rounded-2xl border border-slate-800 bg-slate-900/40 p-6 hover:bg-slate-900/60 transition">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-xl font-bold">Основной дашборд</h2>
+              <p class="mt-1 text-sm text-slate-400">RPS, ошибки, latency, CPU/Memory, БД и Notion</p>
             </div>
-        </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="main-content">
-        <div class="container">
-            <h1 class="page-title">📊 Дашборд метрик</h1>
-            <p class="page-subtitle">Мониторинг производительности и здоровья системы TradingBot в реальном времени</p>
-
-            <!-- Stats Grid -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-icon primary">
-                            <i class="fas fa-comments"></i>
-                        </div>
-                        <div class="stat-change positive">+12%</div>
-                    </div>
-                    <div class="stat-value" id="messages-count">0</div>
-                    <div class="stat-label">Сообщений обработано</div>
-                </div>
-
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-icon success">
-                            <i class="fas fa-chart-bar"></i>
-                        </div>
-                        <div class="stat-change positive">+8%</div>
-                    </div>
-                    <div class="stat-value" id="trades-count">0</div>
-                    <div class="stat-label">Сделок сохранено</div>
-                </div>
-
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-icon warning">
-                            <i class="fas fa-exclamation-triangle"></i>
-                        </div>
-                        <div class="stat-change negative">-5%</div>
-                    </div>
-                    <div class="stat-value" id="errors-count">0</div>
-                    <div class="stat-label">Ошибок зарегистрировано</div>
-                </div>
-
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-icon accent">
-                            <i class="fas fa-users"></i>
-                        </div>
-                        <div class="stat-change positive">+15%</div>
-                    </div>
-                    <div class="stat-value" id="active-users">0</div>
-                    <div class="stat-label">Активных пользователей</div>
-                </div>
-
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-icon primary">
-                            <i class="fas fa-memory"></i>
-                        </div>
-                        <div class="stat-change positive">+3%</div>
-                    </div>
-                    <div class="stat-value" id="memory-usage">0</div>
-                    <div class="stat-label">Использование памяти (MB)</div>
-                </div>
-
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-icon success">
-                            <i class="fas fa-database"></i>
-                        </div>
-                        <div class="stat-change positive">+2%</div>
-                    </div>
-                    <div class="stat-value" id="db-size">0</div>
-                    <div class="stat-label">Размер базы данных (MB)</div>
-                </div>
+            <span class="text-slate-400 group-hover:translate-x-1 transition">→</span>
+          </div>
+        </a>
+        <a href="/detailed-metrics.html" class="group block rounded-2xl border border-slate-800 bg-slate-900/40 p-6 hover:bg-slate-900/60 transition">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-xl font-bold">Детальные метрики</h2>
+              <p class="mt-1 text-sm text-slate-400">Гистограммы latency, очереди OCR, бизнес-метрики</p>
             </div>
+            <span class="text-slate-400 group-hover:translate-x-1 transition">→</span>
+          </div>
+        </a>
+      </div>
+      <div class="mt-8 flex flex-wrap gap-3 text-sm text-slate-400">
+        <a class="underline/20 hover:underline" href="/metrics">/metrics</a>
+        <a class="underline/20 hover:underline" href="/health/ready">/health/ready</a>
+        <a class="underline/20 hover:underline" href="/health/live">/health/live</a>
+      </div>
+    </div>
+  </main>
 
-            <!-- Charts Section -->
-            <div class="charts-section">
-                <h2 class="section-title">📈 Графики производительности</h2>
-                <div class="charts-grid">
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h3 class="chart-title">Сообщения в минуту</h3>
-                            <div class="chart-controls">
-                                <button class="btn active" data-period="1h">1ч</button>
-                                <button class="btn" data-period="6h">6ч</button>
-                                <button class="btn" data-period="24h">24ч</button>
-                            </div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="messagesChart"></canvas>
-                        </div>
-                    </div>
+  <script>
+    // Simple 3D animated particle field background
+    const canvas = document.getElementById('bg3d');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    camera.position.z = 50;
 
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h3 class="chart-title">Время ответа системы</h3>
-                            <div class="chart-controls">
-                                <button class="btn active" data-period="1h">1ч</button>
-                                <button class="btn" data-period="6h">6ч</button>
-                                <button class="btn" data-period="24h">24ч</button>
-                            </div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="responseTimeChart"></canvas>
-                        </div>
-                    </div>
+    const resize = () => {
+      const w = window.innerWidth, h = window.innerHeight;
+      renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+    };
+    window.addEventListener('resize', resize); resize();
 
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h3 class="chart-title">Использование ресурсов</h3>
-                            <div class="chart-controls">
-                                <button class="btn active" data-period="1h">1ч</button>
-                                <button class="btn" data-period="6h">6ч</button>
-                                <button class="btn" data-period="24h">24ч</button>
-                            </div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="resourcesChart"></canvas>
-                        </div>
-                    </div>
+    const geometry = new THREE.BufferGeometry();
+    const count = 1200;
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] = (Math.random() - 0.5) * 160;   // x
+      positions[i * 3 + 1] = (Math.random() - 0.5) * 90; // y
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 120; // z
+    }
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const material = new THREE.PointsMaterial({ color: 0x7c3aed, size: 0.8, sizeAttenuation: true, transparent: true, opacity: 0.65 });
+    const points = new THREE.Points(geometry, material);
+    scene.add(points);
 
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h3 class="chart-title">Ошибки по типам</h3>
-                            <div class="chart-controls">
-                                <button class="btn active" data-period="1h">1ч</button>
-                                <button class="btn" data-period="6h">6ч</button>
-                                <button class="btn" data-period="24h">24ч</button>
-                            </div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="errorsChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
+    const animate = () => {
+      points.rotation.y += 0.0009; points.rotation.x += 0.0003;
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    };
+    animate();
 
-            <!-- Real-time Updates -->
-            <div class="real-time-section">
-                <div class="real-time-header">
-                    <h2 class="section-title">🔄 Обновления в реальном времени</h2>
-                    <button class="refresh-btn" id="refreshBtn">
-                        <i class="fas fa-sync-alt"></i>
-                        Обновить
-                    </button>
-                </div>
-                <div id="realTimeData">
-                    <p style="color: var(--text-secondary); text-align: center;">
-                        Загрузка данных...
-                    </p>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <script src="js/metrics-dashboard.js"></script>
+    gsap.from('.glass', { y: 20, opacity: 0, duration: 0.8, ease: 'power2.out' });
+  </script>
 </body>
 </html>
 

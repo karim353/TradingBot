@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Polly;
+using Polly.Contrib.WaitAndRetry;
+using Polly.CircuitBreaker;
 using Polly.Extensions.Http;
 using System.Net.Http.Headers;
 
@@ -82,38 +84,70 @@ namespace TradingBot.Services
         /// </summary>
         public static IServiceCollection AddNotionHttpClients(this IServiceCollection services)
         {
-            // Политика повторов с экспоненциальным бэк-оффом
+            // Политика повторов с джиттером
+            var jitterDelays = Backoff.DecorrelatedJitterBackoffV2(TimeSpan.FromMilliseconds(200), retryCount: 5);
             var retryPolicy = HttpPolicyExtensions
                 .HandleTransientHttpError()
-                .WaitAndRetryAsync(3, retryAttempt => 
-                    TimeSpan.FromSeconds(Math.Pow(2, retryAttempt - 1)));
+                .OrResult(msg => (int)msg.StatusCode == 429)
+                .WaitAndRetryAsync(jitterDelays);
 
             // Политика для долгих операций
             var longRunningRetryPolicy = HttpPolicyExtensions
                 .HandleTransientHttpError()
-                .WaitAndRetryAsync(5, retryAttempt => 
-                    TimeSpan.FromSeconds(Math.Pow(2, retryAttempt - 1)));
+                .OrResult(msg => (int)msg.StatusCode == 429)
+                .WaitAndRetryAsync(jitterDelays);
 
             // Политика для таймаутов
             var timeoutPolicy = Policy.TimeoutAsync<HttpResponseMessage>(30);
 
+            // Circuit breaker
+            var circuitBreakerPolicy = HttpPolicyExtensions
+                .HandleTransientHttpError()
+                .OrResult(msg => (int)msg.StatusCode == 429)
+                .CircuitBreakerAsync(handledEventsAllowedBeforeBreaking: 5, durationOfBreak: TimeSpan.FromSeconds(30));
+
             // Комбинированная политика
-            var combinedPolicy = Policy.WrapAsync(retryPolicy, timeoutPolicy);
-            var longRunningCombinedPolicy = Policy.WrapAsync(longRunningRetryPolicy, timeoutPolicy);
+            var combinedPolicy = Policy.WrapAsync(retryPolicy, circuitBreakerPolicy, timeoutPolicy);
+            var longRunningCombinedPolicy = Policy.WrapAsync(longRunningRetryPolicy, circuitBreakerPolicy, timeoutPolicy);
 
             services.AddHttpClient("NotionClient", client =>
             {
                 client.Timeout = TimeSpan.FromSeconds(30);
             })
-            .AddPolicyHandler(combinedPolicy);
+            .AddPolicyHandler(combinedPolicy)
+            .AddHttpMessageHandler(() => new MetricsDelegatingHandler("notion_client"));
 
             services.AddHttpClient("NotionLongRunningClient", client =>
             {
                 client.Timeout = TimeSpan.FromMinutes(5);
             })
-            .AddPolicyHandler(longRunningCombinedPolicy);
+            .AddPolicyHandler(longRunningCombinedPolicy)
+            .AddHttpMessageHandler(() => new MetricsDelegatingHandler("notion_long_client"));
 
             return services;
+        }
+    }
+    
+    public class MetricsDelegatingHandler : DelegatingHandler
+    {
+        private readonly string _clientName;
+        private static readonly Prometheus.Histogram Duration = Prometheus.Metrics.CreateHistogram(
+            "tradingbot_http_client_duration_seconds",
+            "HTTP client duration",
+            new Prometheus.HistogramConfiguration { LabelNames = new[] { "client", "status" } });
+
+        public MetricsDelegatingHandler(string clientName)
+        {
+            _clientName = clientName;
+        }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var response = await base.SendAsync(request, cancellationToken);
+            sw.Stop();
+            Duration.WithLabels(_clientName, ((int)response.StatusCode).ToString()).Observe(sw.Elapsed.TotalSeconds);
+            return response;
         }
     }
 }

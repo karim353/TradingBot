@@ -7,6 +7,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using TradingBot.Models;
 using System.Linq;
+using System.Collections.Concurrent;
 
 namespace TradingBot.Services
 {
@@ -18,6 +19,9 @@ namespace TradingBot.Services
 		private readonly ITelegramBotClient _botClient;
 		private readonly IServiceProvider _serviceProvider;
 		private readonly ILogger<BotService> _logger;
+		private static readonly TimeSpan DedupTtl = TimeSpan.FromMinutes(5);
+		private readonly ConcurrentDictionary<long, DateTime> _processedUpdates = new();
+		private Timer? _dedupGcTimer;
 
 		public BotService(ITelegramBotClient botClient, IServiceProvider serviceProvider, ILogger<BotService> logger)
 		{
@@ -36,15 +40,50 @@ namespace TradingBot.Services
 				new BotCommand { Command = "help", Description = "🆘 Помощь" }
 			}, cancellationToken: stoppingToken);
 
+			_dedupGcTimer = new Timer(_ =>
+			{
+				var now = DateTime.UtcNow;
+				foreach (var kv in _processedUpdates.ToArray())
+				{
+					if (now - kv.Value > DedupTtl)
+					{
+						DateTime _removed;
+						_processedUpdates.TryRemove(kv.Key, out _removed);
+					}
+				}
+			}, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+
 			_botClient.StartReceiving(
 				// Обработчик входящего обновления
 				async (bot, update, ct) =>
 				{
 					try
 					{
+						// Дедупликация по Update.Id на короткий срок
+						if (update.Id != 0)
+						{
+							var now = DateTime.UtcNow;
+							if (_processedUpdates.TryGetValue(update.Id, out var lastSeen))
+							{
+								if (now - lastSeen < DedupTtl)
+								{
+									_logger.LogDebug("Duplicate update skipped: {UpdateId}", update.Id);
+									return;
+								}
+							}
+							_processedUpdates[update.Id] = now;
+						}
+
 						using var scope = _serviceProvider.CreateScope();
 						var handler = scope.ServiceProvider.GetRequiredService<UpdateHandler>();
-						await handler.HandleUpdateAsync(bot, update, ct);
+						using (_logger.BeginScope(new Dictionary<string, object>
+						{
+							["chatId"] = update.Message?.Chat.Id ?? update.CallbackQuery?.Message?.Chat.Id ?? 0,
+							["userId"] = update.Message?.From?.Id ?? update.CallbackQuery?.From?.Id ?? 0
+						}))
+						{
+							await handler.HandleUpdateAsync(bot, update, ct);
+						}
 					}
 					catch (Exception ex)
 					{
