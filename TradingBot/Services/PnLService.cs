@@ -10,7 +10,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace TradingBot.Services
 {
-    public class PnLService
+    public class PnLService : IDisposable
     {
         private readonly TesseractEngine _engine;
         private readonly object _lockObj = new object();
@@ -129,91 +129,12 @@ namespace TradingBot.Services
             }
         }
 
-        /// <summary>
-        /// Извлекает торговые данные из произвольного текста пользователя (быстрое добавление)
-        /// Поддерживаемые примеры:
-        ///  - "BTC/USDT long +2.3%"
-        ///  - "ETHUSDT short -10%"
-        ///  - "AAPL buy 1.2%"
-        ///  - "BTC/USDT +25$"
-        /// </summary>
-        public PnLData ExtractFromText(string rawText)
+        public void Dispose()
         {
-            if (string.IsNullOrWhiteSpace(rawText))
+            lock (_lockObj)
             {
-                return new PnLData
-                {
-                    Ticker = string.Empty,
-                    PnLPercent = null,
-                    Close = null,
-                    Open = null,
-                    Direction = string.Empty,
-                    TradeDate = DateTime.Now,
-                    UserName = "unknown",
-                    ReferralCode = "none"
-                };
+                _engine?.Dispose();
             }
-
-            string text = rawText.Trim();
-
-            // Поиск тикера (разрешаем форматы TICKER/USDT, TICKERUSDT, TICKER-USD и просто TICKER)
-            string ticker = string.Empty;
-            var tickerMatch = Regex.Match(text, @"([A-Z]{2,12}(?:\s*/\s*|\s*-\s*|)USDT|[A-Z]{2,12}(?:\s*/\s*|\s*-\s*|)USD|[A-Z]{2,12}/BTC|BTC/USDT|ETH/USDT|[A-Z]{2,12})", RegexOptions.IgnoreCase);
-            if (tickerMatch.Success)
-            {
-                ticker = tickerMatch.Value.ToUpper()
-                    .Replace(" ", "")
-                    .Replace("-", "/");
-
-                if (!ticker.Contains('/') && (ticker.EndsWith("USDT") || ticker.EndsWith("USD") || ticker.EndsWith("BTC")))
-                {
-                    if (ticker.EndsWith("USDT")) ticker = ticker.Replace("USDT", "/USDT");
-                    else if (ticker.EndsWith("USD")) ticker = ticker.Replace("USD", "/USD");
-                    else if (ticker.EndsWith("BTC")) ticker = ticker.Replace("BTC", "/BTC");
-                }
-            }
-
-            // Поиск направления
-            string direction = string.Empty;
-            var upper = text.ToUpperInvariant();
-            if (upper.Contains("LONG") || upper.Contains("BUY")) direction = "Long";
-            else if (upper.Contains("SHORT") || upper.Contains("SELL")) direction = "Short";
-
-            // Поиск PnL (в процентах или в валюте)
-            decimal? pnlPercent = null;
-            var pnlPatterns = new[]
-            {
-                @"([+\-]?\d{1,6}(?:[\.,]\d{1,4})?)\s*%",
-                @"PnL[\s:]*([+\-]?\d{1,6}(?:[\.,]\d{1,4})?)\s*%?",
-                @"P&L[\s:]*([+\-]?\d{1,6}(?:[\.,]\d{1,4})?)\s*%?",
-                @"([+\-]?\d{1,6}(?:[\.,]\d{1,4})?)\s*(?:USDT|USD|\$)"
-            };
-
-            foreach (var pattern in pnlPatterns)
-            {
-                var m = Regex.Match(text, pattern, RegexOptions.IgnoreCase);
-                if (m.Success)
-                {
-                    var raw = m.Groups[1].Value.Replace(',', '.');
-                    if (decimal.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var val))
-                    {
-                        pnlPercent = val;
-                        break;
-                    }
-                }
-            }
-
-            return new PnLData
-            {
-                Ticker = ticker,
-                PnLPercent = pnlPercent,
-                Direction = direction,
-                Open = null,
-                Close = null,
-                TradeDate = DateTime.Now,
-                UserName = "unknown",
-                ReferralCode = "none"
-            };
         }
     }
 }

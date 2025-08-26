@@ -4,6 +4,7 @@ using Microsoft.Extensions.Caching.Memory;
 using TradingBot.Models;
 using TradingBot.Validators;
 using FluentValidation.Results;
+using System.Text.RegularExpressions;
 
 namespace TradingBot.Services
 {
@@ -25,6 +26,8 @@ namespace TradingBot.Services
         {
             try
             {
+                // Нормализуем данные перед валидацией, чтобы избежать ложных ошибок
+                NormalizeTrade(trade);
                 var result = await _tradeValidator.ValidateAsync(trade);
                 
                 if (!result.IsValid)
@@ -40,6 +43,23 @@ namespace TradingBot.Services
                 _logger.LogError(ex, "Ошибка при валидации сделки");
                 throw;
             }
+        }
+
+        private static void NormalizeTrade(Trade trade)
+        {
+            if (trade == null) return;
+            trade.Ticker = NormalizeTicker(trade.Ticker);
+        }
+
+        private static string NormalizeTicker(string? source)
+        {
+            if (string.IsNullOrWhiteSpace(source))
+                return string.Empty;
+
+            var t = source.Trim().ToUpperInvariant().Replace(" ", string.Empty).Replace("-", "/");
+            // Убираем дублирование слешей
+            t = Regex.Replace(t, @"/+", "/");
+            return t;
         }
 
         public bool IsValidTicker(string ticker)
