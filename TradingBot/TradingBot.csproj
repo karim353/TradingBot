@@ -56,4 +56,18 @@
       <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.8.1" />
     </ItemGroup>
 
+    <ItemGroup>
+      <None Include="appsettings.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <Content Include="banner.gif">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <!-- Copy repository-level wwwroot into output so static files work on Linux regardless of cwd -->
+      <Content Include="../wwwroot/**">
+        <Link>wwwroot/%(RecursiveDir)%(Filename)%(Extension)</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+
 </Project>

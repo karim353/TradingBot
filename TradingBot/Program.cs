@@ -10,6 +10,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using System.IO;
 
 using Telegram.Bot;
 using TradingBot.Services;
@@ -25,6 +26,8 @@ using Microsoft.AspNetCore.ResponseCompression;
 
 
 var host = Host.CreateDefaultBuilder(args)
+    // Гарантируем единый ContentRoot, чтобы appsettings.json находился вне зависимости от текущей директории запуска
+    .UseContentRoot(AppContext.BaseDirectory)
     .ConfigureWebHostDefaults(webBuilder =>
     {
         // URL задаётся через ASPNETCORE_URLS или Kestrel-конфиг; localhost по умолчанию
@@ -108,7 +111,9 @@ var host = Host.CreateDefaultBuilder(args)
     })
     .ConfigureAppConfiguration((context, config) =>
     {
+        // Загружаем конфиг из текущего ContentRoot и дополнительно из каталога сборки (BaseDirectory)
         config.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+        config.AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appsettings.json"), optional: true, reloadOnChange: true);
         config.AddEnvironmentVariables();
     })
     .ConfigureServices((context, services) =>

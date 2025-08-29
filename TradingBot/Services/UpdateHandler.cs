@@ -491,18 +491,36 @@ namespace TradingBot.Services
             int winRate = totalTrades > 0 ? (int)((double)profitableCount / totalTrades * 100) : 0;
             int tradesToday = (await _tradeStorage.GetTradesInDateRangeAsync(userId, DateTime.Today, DateTime.Now)).Count;
 
-            string mainText = _uiManager.GetText("main_menu", settings.Language, tradesToday, totalPnL.ToString("F2"), winRate);
+            // Улучшенный текст главного меню с цветовой подсветкой и приветствием
+            string mainText = _uiManager.GetEnhancedMainMenuText(settings, totalTrades, totalPnL, winRate);
 
-            using var stream = new FileStream("banner.gif", FileMode.Open, FileAccess.Read);
-            await bot.SendAnimation(
-                chatId,
-                InputFile.FromStream(stream, "banner.gif"),
-                caption: mainText,
-                replyMarkup: _uiManager.GetMainMenu(settings),
-                cancellationToken: ct
-            );
+            // Более умное главное меню (c персональными быстрыми действиями в будущем)
+            var keyboard = await _uiManager.GetSmartMainMenuAsync(settings, userId);
 
-            _logger.LogInformation($"🏠 Sent main menu with GIF banner to UserId={userId}");
+            // Безопасная отправка баннера: если файла нет — отправим только текст
+            try
+            {
+                if (File.Exists("banner.gif"))
+                {
+                    using var stream = new FileStream("banner.gif", FileMode.Open, FileAccess.Read);
+                    await bot.SendAnimation(
+                        chatId,
+                        InputFile.FromStream(stream, "banner.gif"),
+                        caption: mainText,
+                        replyMarkup: keyboard,
+                        cancellationToken: ct
+                    );
+                    _logger.LogInformation($"🏠 Sent main menu with GIF banner to UserId={userId}");
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send GIF banner, fallback to text message");
+            }
+
+            await bot.SendMessage(chatId, mainText, replyMarkup: keyboard, cancellationToken: ct);
+            _logger.LogInformation($"🏠 Sent main menu (text fallback) to UserId={userId}");
         }
 
         private async Task SendStatisticsAsync(long chatId, long userId, ITelegramBotClient bot, UserSettings settings, CancellationToken ct)
@@ -896,8 +914,7 @@ namespace TradingBot.Services
                             int winRate = totalTrades > 0 ? (int)((double)profitableCount / totalTrades * 100) : 0;
                             int tradesToday = (await _tradeStorage.GetTradesInDateRangeAsync(userId, DateTime.Today, DateTime.Now)).Count;
 
-                            string mainText = _uiManager.GetText("main_menu", settings.Language, tradesToday, totalPnL.ToString("F2"), winRate);
-                            await bot.SendMessage(chatId, mainText, replyMarkup: _uiManager.GetMainMenu(settings), cancellationToken: CancellationToken.None);
+                            await SendMainMenuAsync(chatId, userId, bot, CancellationToken.None);
                             return;
                         }
 
