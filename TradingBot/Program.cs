@@ -1,4 +1,6 @@
 ﻿using System;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +26,50 @@ using OpenTelemetry.Trace;
 using OpenTelemetry.Resources;
 using Microsoft.AspNetCore.ResponseCompression;
 
+
+// Быстрая проверка конфигурации без запуска бота/веб-сервера:
+// dotnet run -- --check
+if (args.Any(a => string.Equals(a, "--check", StringComparison.OrdinalIgnoreCase)))
+{
+    var cfg = new ConfigurationBuilder()
+        .SetBasePath(Directory.GetCurrentDirectory())
+        .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
+        .AddEnvironmentVariables()
+        .AddCommandLine(args)
+        .Build();
+
+    var errors = new List<string>();
+
+    var botToken = cfg["Telegram:BotToken"];
+    if (string.IsNullOrWhiteSpace(botToken))
+        errors.Add("Telegram:BotToken пустой (задайте через переменную окружения Telegram__BotToken).");
+
+    var useNotion = bool.TryParse(cfg["UseNotion"], out var notionFlag) && notionFlag;
+    if (useNotion && string.IsNullOrWhiteSpace(cfg["Notion:DatabaseId"]))
+        errors.Add("UseNotion=true, но Notion:DatabaseId не задан.");
+
+    var ocrEnabled = cfg.GetValue<bool>("Tesseract:Enabled", false);
+    if (ocrEnabled)
+    {
+        var dataPath = cfg["Tesseract:DataPath"] ?? "./tessdata";
+        if (!Directory.Exists(dataPath))
+            errors.Add($"Tesseract:Enabled=true, но папка Tesseract:DataPath не существует: {dataPath}");
+    }
+
+    if (errors.Count > 0)
+    {
+        Console.Error.WriteLine("CONFIG CHECK: FAILED");
+        foreach (var e in errors) Console.Error.WriteLine("- " + e);
+        Environment.ExitCode = 2;
+    }
+    else
+    {
+        Console.WriteLine("CONFIG CHECK: OK");
+        Environment.ExitCode = 0;
+    }
+
+    return;
+}
 
 var host = Host.CreateDefaultBuilder(args)
     // Гарантируем единый ContentRoot, чтобы appsettings.json находился вне зависимости от текущей директории запуска
@@ -192,18 +238,6 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddScoped<PersonalNotionService>();
         services.AddScoped<NotionSettingsService>();
 
-        
-        // Добавляем NotionService с конфигурацией
-        services.AddScoped<NotionService>(provider =>
-        {
-            var httpClient = provider.GetRequiredService<IHttpClientFactory>().CreateClient("NotionClient");
-            var databaseId = config["Notion:DatabaseId"] ?? throw new Exception("Notion DatabaseId not configured.");
-            var logger = provider.GetRequiredService<ILogger<NotionService>>();
-            return new NotionService(httpClient, databaseId, logger);
-        });
-        
-
-        
         // Сервис валидации
         services.AddScoped<ValidationService>();
         
@@ -252,6 +286,19 @@ var host = Host.CreateDefaultBuilder(args)
 
         if (useNotion)
         {
+            // Глобальное хранилище Notion для общих справочников
+            // ВАЖНО: не падаем при старте, если Notion не настроен — это требуется только при UseNotion=true
+            var globalDatabaseId = config["Notion:DatabaseId"];
+            if (string.IsNullOrWhiteSpace(globalDatabaseId))
+                throw new Exception("UseNotion=true, но Notion:DatabaseId не настроен.");
+
+            services.AddScoped<NotionService>(provider =>
+            {
+                var httpClient = provider.GetRequiredService<IHttpClientFactory>().CreateClient("NotionClient");
+                var logger = provider.GetRequiredService<ILogger<NotionService>>();
+                return new NotionService(httpClient, globalDatabaseId, logger);
+            });
+
             // Глобальное хранилище Notion для общих справочников
             services.AddScoped<ITradeStorage, NotionTradeStorage>();
         }

@@ -13,36 +13,17 @@ namespace TradingBot.Services
 {
     public class PnLService : IDisposable
     {
-        private readonly TesseractEngine? _engine;
+        private TesseractEngine? _engine;
         private readonly object _lockObj = new object();
-        private readonly bool _ocrEnabled;
+        private bool _ocrEnabled;
+        private readonly string _tessDataPath;
         private readonly ILogger<PnLService> _logger;
 
         public PnLService(IConfiguration config, ILogger<PnLService> logger)
         {
             _logger = logger;
-            _ocrEnabled = bool.TryParse(config["Tesseract:Enabled"], out var enabled) && enabled;
-
-            if (_ocrEnabled)
-            {
-                try
-                {
-                    string tessDataPath = config["Tesseract:DataPath"] ?? "./tessdata";
-                    _engine = new TesseractEngine(tessDataPath, "eng", EngineMode.Default);
-                }
-                catch (DllNotFoundException ex)
-                {
-                    _logger.LogWarning(ex, "Tesseract OCR библиотеки не найдены. OCR будет отключен.");
-                    _ocrEnabled = false;
-                    _engine = null;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Не удалось инициализировать Tesseract. OCR будет отключен.");
-                    _ocrEnabled = false;
-                    _engine = null;
-                }
-            }
+            _ocrEnabled = config.GetValue<bool>("Tesseract:Enabled", false);
+            _tessDataPath = config["Tesseract:DataPath"] ?? "./tessdata";
         }
 
         public PnLData ExtractFromImage(Stream imageStream)
@@ -50,17 +31,37 @@ namespace TradingBot.Services
             lock (_lockObj)
             {
                 string text = string.Empty;
-                if (_ocrEnabled && _engine != null)
+
+                if (_ocrEnabled)
                 {
-                    byte[] imageData;
-                    using (var ms = new MemoryStream())
+                    try
                     {
-                        imageStream.CopyTo(ms);
-                        imageData = ms.ToArray();
+                        _engine ??= new TesseractEngine(_tessDataPath, "eng", EngineMode.Default);
+
+                        byte[] imageData;
+                        using (var ms = new MemoryStream())
+                        {
+                            imageStream.CopyTo(ms);
+                            imageData = ms.ToArray();
+                        }
+                        using var pix = Pix.LoadFromMemory(imageData);
+                        using var page = _engine.Process(pix);
+                        text = page.GetText();
                     }
-                    using var pix = Pix.LoadFromMemory(imageData);
-                    using var page = _engine.Process(pix);
-                    text = page.GetText();
+                    catch (DllNotFoundException ex)
+                    {
+                        _logger.LogWarning(ex, "Tesseract OCR библиотеки не найдены. OCR будет отключен.");
+                        _ocrEnabled = false;
+                        _engine?.Dispose();
+                        _engine = null;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Не удалось выполнить OCR через Tesseract. OCR будет отключен.");
+                        _ocrEnabled = false;
+                        _engine?.Dispose();
+                        _engine = null;
+                    }
                 }
                 else
                 {
@@ -166,6 +167,7 @@ namespace TradingBot.Services
             lock (_lockObj)
             {
                 _engine?.Dispose();
+                _engine = null;
             }
         }
     }

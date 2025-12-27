@@ -37,6 +37,9 @@ Thumbs.db
 *.swp
 *.swo
 
+# OCR debug dump
+last_ocr.txt
+
 # Environment variables
 .env
 .env.local
