@@ -12,7 +12,6 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using System.IO;
 
 using Telegram.Bot;
 using TradingBot.Services;
@@ -26,13 +25,31 @@ using OpenTelemetry.Trace;
 using OpenTelemetry.Resources;
 using Microsoft.AspNetCore.ResponseCompression;
 
+static string ResolveContentRoot()
+{
+    // Нормальный запуск: из папки проекта (там лежит TradingBot.csproj, appsettings.json, wwwroot, banner.gif)
+    var cwd = Directory.GetCurrentDirectory();
+    if (File.Exists(Path.Combine(cwd, "TradingBot.csproj")))
+        return cwd;
+
+    // Частый сценарий: запуск из корня репозитория
+    var nested = Path.Combine(cwd, "TradingBot");
+    if (Directory.Exists(nested) && File.Exists(Path.Combine(nested, "TradingBot.csproj")))
+        return nested;
+
+    return cwd;
+}
+
+var contentRoot = ResolveContentRoot();
+// Важно: в проекте много относительных путей (banner.gif, trades.db, appsettings.json)
+Directory.SetCurrentDirectory(contentRoot);
 
 // Быстрая проверка конфигурации без запуска бота/веб-сервера:
 // dotnet run -- --check
 if (args.Any(a => string.Equals(a, "--check", StringComparison.OrdinalIgnoreCase)))
 {
     var cfg = new ConfigurationBuilder()
-        .SetBasePath(Directory.GetCurrentDirectory())
+        .SetBasePath(contentRoot)
         .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
         .AddEnvironmentVariables()
         .AddCommandLine(args)
@@ -72,8 +89,7 @@ if (args.Any(a => string.Equals(a, "--check", StringComparison.OrdinalIgnoreCase
 }
 
 var host = Host.CreateDefaultBuilder(args)
-    // Гарантируем единый ContentRoot, чтобы appsettings.json находился вне зависимости от текущей директории запуска
-    .UseContentRoot(AppContext.BaseDirectory)
+    .UseContentRoot(contentRoot)
     .ConfigureWebHostDefaults(webBuilder =>
     {
         // URL задаётся через ASPNETCORE_URLS или Kestrel-конфиг; localhost по умолчанию
@@ -157,9 +173,9 @@ var host = Host.CreateDefaultBuilder(args)
     })
     .ConfigureAppConfiguration((context, config) =>
     {
-        // Загружаем конфиг из текущего ContentRoot и дополнительно из каталога сборки (BaseDirectory)
+        // Конфиг читаем из текущей директории (обычно папка проекта при dotnet run)
+        config.SetBasePath(contentRoot);
         config.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
-        config.AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appsettings.json"), optional: true, reloadOnChange: true);
         config.AddEnvironmentVariables();
     })
     .ConfigureServices((context, services) =>
