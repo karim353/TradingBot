@@ -274,21 +274,25 @@
                     <span>TradingBot Metrics</span>
                 </div>
                 <nav class="nav-links">
-                    <a href="/index.html" class="nav-link">
+                    <a href="/" class="nav-link">
+                        <i class="fas fa-home"></i>
+                        Главная
+                    </a>
+                    <a href="/metrics-dashboard.html" class="nav-link">
                         <i class="fas fa-tachometer-alt"></i>
-                        Дашборд
+                        Основной дашборд
                     </a>
                     <a href="/detailed-metrics.html" class="nav-link active">
                         <i class="fas fa-chart-bar"></i>
                         Детальные метрики
                     </a>
-                    <a href="/metrics" class="nav-link">
+                    <a href="/metrics" class="nav-link" target="_blank">
                         <i class="fas fa-code"></i>
                         Raw Metrics
                     </a>
-                    <a href="/health" class="nav-link">
+                    <a href="/health/ready" class="nav-link" target="_blank">
                         <i class="fas fa-heartbeat"></i>
-                        Health Check
+                        Health
                     </a>
                 </nav>
             </div>
@@ -392,6 +396,7 @@
         </div>
     </main>
 
+    <script src="js/prometheus-parser.js"></script>
     <script src="js/detailed-metrics.js"></script>
 </body>
 </html>

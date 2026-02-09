@@ -202,6 +202,7 @@
         <div class="header">
             <h1>🚀 TradingBot Metrics Dashboard</h1>
             <p>Расширенный мониторинг производительности и торговых метрик</p>
+            <p style="margin-top: 12px;"><a href="/" style="color: rgba(255,255,255,0.9); text-decoration: underline;">← На главную</a> | <a href="/detailed-metrics.html" style="color: rgba(255,255,255,0.9); text-decoration: underline;">Детальные метрики</a></p>
         </div>
 
         <button class="refresh-button" onclick="refreshMetrics()">
@@ -378,16 +379,16 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/prometheus-parser.js"></script>
     <script>
         let performanceChart;
         let metricsData = {};
+        let chartDataHistory = { labels: [], responseTime: [], memory: [] };
 
         // Инициализация при загрузке страницы
         document.addEventListener('DOMContentLoaded', function() {
             initializeChart();
             refreshMetrics();
-            
-            // Автообновление каждые 30 секунд
             setInterval(refreshMetrics, 30000);
         });
 
@@ -466,8 +467,8 @@
                 showLoading(true);
                 hideMessages();
 
-                // Получаем метрики
                 const metricsResponse = await fetch('/metrics');
+                if (!metricsResponse.ok) throw new Error('HTTP ' + metricsResponse.status);
                 const metricsText = await metricsResponse.text();
                 
                 // Парсим метрики
@@ -488,67 +489,67 @@
             }
         }
 
-        // Парсинг метрик Prometheus
+        // Парсинг метрик Prometheus (поддержка labels)
         function parseMetrics(metricsText) {
-            const lines = metricsText.split('\n');
-            
-            lines.forEach(line => {
-                if (line.startsWith('#') || line.trim() === '') return;
-                
-                const parts = line.split(' ');
-                if (parts.length < 2) return;
-                
-                const metricName = parts[0];
-                const metricValue = parseFloat(parts[parts.length - 1]);
-                
-                if (!isNaN(metricValue)) {
-                    metricsData[metricName] = metricValue;
-                }
-            });
+            try {
+                metricsData = (window.PrometheusParser && window.PrometheusParser.parse) ? window.PrometheusParser.parse(metricsText) : {};
+            } catch (e) {
+                console.warn('PrometheusParser unavailable, using empty data', e);
+                metricsData = {};
+            }
         }
 
-        // Обновление UI метрик
-        function updateMetricsUI() {
-            // Системные метрики
-            updateMetric('system-uptime', formatUptime(metricsData['tradingbot_system_uptime_seconds'] || 0));
-            updateMetric('memory-usage', formatBytes(metricsData['tradingbot_memory_usage_bytes'] || 0));
-            updateMetric('cpu-usage', formatPercentage(metricsData['tradingbot_cpu_usage_percentage'] || 0));
-            updateMetric('database-size', formatMB(metricsData['tradingbot_database_size_mb'] || 0));
-            updateMetric('active-users', Math.round(metricsData['tradingbot_active_users'] || 0));
-            updateMetric('concurrent-requests', Math.round(metricsData['tradingbot_concurrent_requests'] || 0));
+        function getMetric(name) {
+            if (!metricsData[name]) return 0;
+            return typeof metricsData[name] === 'number' ? metricsData[name] : parseFloat(metricsData[name]) || 0;
+        }
 
-            // Торговые метрики
-            const totalTrades = (metricsData['tradingbot_trades_total{trade_type="buy"}'] || 0) + 
-                               (metricsData['tradingbot_trades_total{trade_type="sell"}'] || 0);
-            updateMetric('total-trades', totalTrades);
-            
-            updateMetric('win-rate', formatPercentage(metricsData['tradingbot_win_rate_percentage'] || 0));
-            updateMetric('average-pnl', formatCurrency(metricsData['tradingbot_average_pnl'] || 0));
-            
-            const totalMessages = (metricsData['tradingbot_messages_total{type="text"}'] || 0) + 
-                                 (metricsData['tradingbot_messages_total{type="callback"}'] || 0);
-            updateMetric('total-messages', totalMessages);
-            
-            updateMetric('avg-response-time', formatTime(metricsData['tradingbot_request_duration_seconds'] || 0));
-            updateMetric('total-errors', Math.round(metricsData['tradingbot_errors_total'] || 0));
+        function sumMetric(baseName) {
+            return window.PrometheusParser ? window.PrometheusParser.sumByPrefix(metricsData, baseName) : getMetric(baseName);
+        }
+
+        // Обновление UI метрик (имена соответствуют PrometheusMetricsService)
+        function updateMetricsUI() {
+            updateMetric('system-uptime', formatUptime(getMetric('tradingbot_system_uptime_seconds')));
+            updateMetric('memory-usage', formatBytes(getMetric('tradingbot_memory_usage_bytes')));
+            updateMetric('cpu-usage', formatPercentage(getMetric('tradingbot_cpu_usage_percentage')));
+            updateMetric('database-size', formatMB(getMetric('tradingbot_database_size_mb')));
+            updateMetric('active-users', Math.round(getMetric('tradingbot_active_users')));
+            updateMetric('concurrent-requests', Math.round(getMetric('tradingbot_concurrent_requests')));
+
+            const totalTrades = sumMetric('tradingbot_trades_total');
+            updateMetric('total-trades', Math.round(totalTrades));
+            updateMetric('win-rate', formatPercentage(getMetric('tradingbot_win_rate_percentage')));
+            updateMetric('average-pnl', formatCurrency(getMetric('tradingbot_average_pnl')));
+
+            const totalMessages = sumMetric('tradingbot_messages_total');
+            updateMetric('total-messages', Math.round(totalMessages));
+
+            const respSum = getMetric('tradingbot_request_duration_seconds_sum');
+            const respCount = getMetric('tradingbot_request_duration_seconds_count');
+            const avgResp = respCount > 0 ? respSum / respCount : 0;
+            updateMetric('avg-response-time', formatTime(avgResp));
+
+            updateMetric('total-errors', Math.round(sumMetric('tradingbot_errors_total')));
         }
 
         // Обновление графика
         function updateChart() {
             const now = new Date().toLocaleTimeString();
-            
-            // Добавляем новые данные
+            const respSum = getMetric('tradingbot_request_duration_seconds_sum');
+            const respCount = getMetric('tradingbot_request_duration_seconds_count');
+            const avgMs = respCount > 0 ? (respSum / respCount) * 1000 : 0;
+            const memMb = getMetric('tradingbot_memory_usage_bytes') / 1024 / 1024;
+
             performanceChart.data.labels.push(now);
-            performanceChart.data.datasets[0].data.push(metricsData['tradingbot_request_duration_seconds'] * 1000 || 0);
-            performanceChart.data.datasets[1].data.push((metricsData['tradingbot_memory_usage_bytes'] || 0) / 1024 / 1024);
-            
-            // Ограничиваем количество точек
+            performanceChart.data.datasets[0].data.push(avgMs);
+            performanceChart.data.datasets[1].data.push(memMb);
+
             if (performanceChart.data.labels.length > 20) {
                 performanceChart.data.labels.shift();
                 performanceChart.data.datasets[0].data.shift();
                 performanceChart.data.datasets[1].data.shift();
             }
-            
             performanceChart.update();
         }
 

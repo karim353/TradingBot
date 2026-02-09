@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
@@ -63,8 +63,8 @@
       <Content Include="banner.gif">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
-      <!-- Copy repository-level wwwroot into output so static files work on Linux regardless of cwd -->
-      <Content Include="../wwwroot/**">
+      <!-- Copy wwwroot into output so static files are available -->
+      <Content Include="wwwroot/**">
         <Link>wwwroot/%(RecursiveDir)%(Filename)%(Extension)</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>

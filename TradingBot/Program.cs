@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -115,28 +115,30 @@ var host = Host.CreateDefaultBuilder(args)
             logger.LogInformation("🌐 Статические файлы настроены");
             
             app.UseHttpMetrics();
+            app.UseCors();
             app.UseRouting();
             
             app.UseEndpoints(endpoints =>
             {
+                endpoints.MapControllers();
                 // Простые эндпоинты для тестирования
                 endpoints.MapGet("/test", () => "Test endpoint works!");
                 
                 // Экспорт метрик Prometheus
                 endpoints.MapMetrics();
                 
-                // Liveness (просто жив)
-                endpoints.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+                // Liveness — простой endpoint: процесс жив
+                endpoints.MapGet("/health/live", async context =>
                 {
-                    Predicate = _ => false
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync("{\"status\":\"ok\",\"type\":\"liveness\"}");
                 });
-                // Readiness (готовность зависимостей)
+                // Readiness — проверка зависимостей (БД и т.д.)
                 endpoints.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
                 {
                     Predicate = reg => reg.Tags.Contains("readiness")
                 });
-                
-                // Back-compat общий health
+                // Back-compat: /health перенаправляет на /health/ready
                 endpoints.MapGet("/health", async context =>
                 {
                     context.Response.Redirect("/health/ready");
@@ -166,6 +168,9 @@ var host = Host.CreateDefaultBuilder(args)
                     logger.LogInformation("🏠 Главная страница от {RemoteIpAddress}", context.Connection.RemoteIpAddress);
                     context.Response.Redirect("/index.html");
                 });
+
+                // SPA fallback: /app, /app/, /app/add, /app/stats -> app/index.html
+                endpoints.MapFallbackToFile("app/index.html");
             });
             
             logger.LogInformation("🌐 Веб-сервер настроен и запущен на http://localhost:5000");
@@ -237,6 +242,19 @@ var host = Host.CreateDefaultBuilder(args)
         }
         
         services.AddScoped<TradeRepository>();
+
+        // REST API для SPA
+        services.AddControllers().AddJsonOptions(opt =>
+        {
+            opt.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        });
+        services.AddCors(options =>
+        {
+            options.AddDefaultPolicy(b => b
+                .AllowAnyOrigin()
+                .AllowAnyMethod()
+                .AllowAnyHeader());
+        });
         services.AddScoped<UserSettingsService>(provider =>
         {
             var logger = provider.GetRequiredService<ILogger<UserSettingsService>>();

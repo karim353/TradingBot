@@ -1,0 +1,10 @@
+{
+  "name": "webapp",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "cd trader-journal-design && pnpm dev",
+    "build": "cd trader-journal-design && pnpm run build:deploy",
+    "build:design": "cd trader-journal-design && pnpm run build:deploy"
+  }
+}

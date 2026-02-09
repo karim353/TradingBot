@@ -180,25 +180,7 @@ class DetailedMetrics {
     }
 
     parseMetrics(metricsText) {
-        const lines = metricsText.split('\n');
-        this.metricsData = {};
-
-        lines.forEach(line => {
-            if (line.startsWith('#') || line.trim() === '') return;
-            
-            const match = line.match(/^([a-zA-Z_:][a-zA-Z0-9_:]*)\s+([0-9.]+)(?:\s+(\d+))?$/);
-            if (match) {
-                const metricName = match[1];
-                const value = parseFloat(match[2]);
-                const timestamp = match[3] ? parseInt(match[3]) : Date.now();
-
-                if (!this.metricsData[metricName]) {
-                    this.metricsData[metricName] = [];
-                }
-                
-                this.metricsData[metricName].push({ value, timestamp });
-            }
-        });
+        this.metricsData = window.PrometheusParser ? window.PrometheusParser.parse(metricsText) : {};
     }
 
     updateMetrics() {
@@ -220,7 +202,6 @@ class DetailedMetrics {
     }
 
     calculatePerformanceScore() {
-        // Имитируем расчет производительности на основе метрик
         const messagesTotal = this.getMetricValue('tradingbot_messages_total') || 0;
         const errorsTotal = this.getMetricValue('tradingbot_errors_total') || 0;
         const memoryUsage = this.getMetricValue('tradingbot_memory_usage_bytes') || 0;
@@ -244,8 +225,9 @@ class DetailedMetrics {
     }
 
     calculateAverageResponseTime() {
-        const responseTime = this.getMetricValue('tradingbot_request_duration_seconds') || 0;
-        return Math.round(responseTime * 1000); // конвертируем в мс
+        const sum = this.getMetricValue('tradingbot_request_duration_seconds_sum') || 0;
+        const count = this.getMetricValue('tradingbot_request_duration_seconds_count') || 1;
+        return Math.round((sum / count) * 1000); // среднее в мс
     }
 
     calculateDatabaseEfficiency() {
@@ -292,11 +274,10 @@ class DetailedMetrics {
     updateErrorDistributionChart() {
         const chart = this.charts.errorDistribution;
         const errorTypes = ['validation', 'database', 'telegram', 'notion', 'other'];
-        
         const data = errorTypes.map(type => {
-            return this.getMetricValue(`tradingbot_errors_total{type="${type}"}`) || 0;
+            const v = this.getMetricValue(`tradingbot_errors_total{type="${type}"}`);
+            return typeof v === 'number' ? v : 0;
         });
-        
         chart.data.datasets[0].data = data;
         chart.update('none');
     }
@@ -378,10 +359,10 @@ class DetailedMetrics {
     }
 
     getMetricValue(metricName) {
-        if (this.metricsData[metricName] && this.metricsData[metricName].length > 0) {
-            return this.metricsData[metricName][this.metricsData[metricName].length - 1].value;
-        }
-        return 0;
+        const base = metricName.replace(/\{[^}]*\}/, '').trim();
+        const v = this.metricsData[metricName] ?? this.metricsData[base];
+        if (v === undefined) return 0;
+        return typeof v === 'number' ? v : (parseFloat(v) || 0);
     }
 
     updateRawMetrics(metricsText) {

@@ -62,5 +62,8 @@ namespace TradingBot.Models
 
         /// <summary>% Profit</summary>
         public decimal PnL { get; set; }
+
+        /// <summary>Base64 screenshot(s) - single data URL or JSON array of data URLs</summary>
+        public string? ScreenshotPath { get; set; }
     }
 }

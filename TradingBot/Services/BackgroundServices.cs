@@ -32,13 +32,21 @@ namespace TradingBot.Services
 
 		protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 		{
-			// Регистрация команд
-			await _botClient.SetMyCommands(new[]
+			try
 			{
-				new BotCommand { Command = "start", Description = "🚀 Запуск бота и обучение" },
-				new BotCommand { Command = "menu", Description = "📋 Главное меню" },
-				new BotCommand { Command = "help", Description = "🆘 Помощь" }
-			}, cancellationToken: stoppingToken);
+				// Регистрация команд
+				await _botClient.SetMyCommands(new[]
+				{
+					new BotCommand { Command = "start", Description = "🚀 Запуск бота и обучение" },
+					new BotCommand { Command = "menu", Description = "📋 Главное меню" },
+					new BotCommand { Command = "help", Description = "🆘 Помощь" }
+				}, cancellationToken: stoppingToken);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Не удалось инициализировать Telegram-бота. Веб-интерфейс будет работать.");
+				return;
+			}
 
 			_dedupGcTimer = new Timer(_ =>
 			{
