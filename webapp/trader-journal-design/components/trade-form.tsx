@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { X, Plus, ImagePlus, Trash2 } from "lucide-react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -20,7 +20,8 @@ import { cn } from "@/lib/utils"
 import type { Trade, Account, Session, Position, Direction, TradeResult, Emotion } from "@/lib/types"
 
 interface TradeFormProps {
-  onSubmit: (trade: Omit<Trade, "id">) => void | Promise<void>
+  initialTrade?: Trade | null
+  onSubmit: (trade: Omit<Trade, "id"> | Trade) => void | Promise<void>
   onClose: () => void
 }
 
@@ -33,25 +34,47 @@ const EMOTIONS: Emotion[] = ["Nervous", "Confident", "Anxious", "Calm", "Excited
 const SETUPS = ["SweepBosRTO", "Range Provocation", "BR=>IL=>OL", "FVG Entry", "Liquidity Grab", "Order Block"]
 const CONTEXTS = ["Bullish divergence", "Bearish divergence", "Support test", "Resistance rejection", "Breakout", "Bullish engulfing", "Bearish engulfing", "Order block", "Bullish structure", "Bearish structure"]
 
-export function TradeForm({ onSubmit, onClose }: TradeFormProps) {
-  const [ticker, setTicker] = useState("")
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0])
-  const [account, setAccount] = useState<Account>("Bybit")
-  const [session, setSession] = useState<Session>("NEW YORK")
-  const [position, setPosition] = useState<Position>("LONG")
-  const [direction, setDirection] = useState<Direction>("Reversal")
-  const [selectedContexts, setSelectedContexts] = useState<string[]>([])
-  const [selectedSetups, setSelectedSetups] = useState<string[]>([])
-  const [result, setResult] = useState<TradeResult>("TP")
-  const [rr, setRr] = useState("2")
-  const [risk, setRisk] = useState("1")
-  const [pnl, setPnl] = useState("")
-  const [entryDetails, setEntryDetails] = useState("")
-  const [comment, setComment] = useState("")
-  const [note, setNote] = useState("")
-  const [selectedEmotions, setSelectedEmotions] = useState<Emotion[]>([])
-  const [screenshots, setScreenshots] = useState<string[]>([])
+export function TradeForm({ initialTrade, onSubmit, onClose }: TradeFormProps) {
+  const [ticker, setTicker] = useState(initialTrade?.ticker ?? "")
+  const [date, setDate] = useState(initialTrade?.date ?? new Date().toISOString().split("T")[0])
+  const [account, setAccount] = useState<Account>(initialTrade?.account ?? "Bybit")
+  const [session, setSession] = useState<Session>(initialTrade?.session ?? "NEW YORK")
+  const [position, setPosition] = useState<Position>(initialTrade?.position ?? "LONG")
+  const [direction, setDirection] = useState<Direction>(initialTrade?.direction ?? "Reversal")
+  const [selectedContexts, setSelectedContexts] = useState<string[]>(initialTrade?.context ?? [])
+  const [selectedSetups, setSelectedSetups] = useState<string[]>(initialTrade?.setup ?? [])
+  const [result, setResult] = useState<TradeResult>(initialTrade?.result ?? "TP")
+  const [rr, setRr] = useState(initialTrade != null ? String(initialTrade.rr) : "2")
+  const [risk, setRisk] = useState(initialTrade != null ? String(initialTrade.risk) : "1")
+  const [pnl, setPnl] = useState(initialTrade != null ? String(initialTrade.pnl) : "")
+  const [entryDetails, setEntryDetails] = useState(initialTrade?.entryDetails ?? "")
+  const [comment, setComment] = useState(initialTrade?.comment ?? "")
+  const [note, setNote] = useState(initialTrade?.note ?? "")
+  const [selectedEmotions, setSelectedEmotions] = useState<Emotion[]>(initialTrade?.emotions ?? [])
+  const [screenshots, setScreenshots] = useState<string[]>(initialTrade?.screenshots ?? [])
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (initialTrade) {
+      setTicker(initialTrade.ticker)
+      setDate(initialTrade.date)
+      setAccount(initialTrade.account as Account)
+      setSession(initialTrade.session as Session)
+      setPosition(initialTrade.position as Position)
+      setDirection(initialTrade.direction as Direction)
+      setSelectedContexts(initialTrade.context ?? [])
+      setSelectedSetups(initialTrade.setup ?? [])
+      setResult(initialTrade.result)
+      setRr(String(initialTrade.rr))
+      setRisk(String(initialTrade.risk))
+      setPnl(String(initialTrade.pnl))
+      setEntryDetails(initialTrade.entryDetails ?? "")
+      setComment(initialTrade.comment ?? "")
+      setNote(initialTrade.note ?? "")
+      setSelectedEmotions(initialTrade.emotions ?? [])
+      setScreenshots(initialTrade.screenshots ?? [])
+    }
+  }, [initialTrade])
 
   const toggleItem = <T extends string>(arr: T[], item: T, setter: (v: T[]) => void) => {
     setter(arr.includes(item) ? arr.filter((i) => i !== item) : [...arr, item])
@@ -94,7 +117,7 @@ export function TradeForm({ onSubmit, onClose }: TradeFormProps) {
           ? -Number.parseFloat(risk)
           : 0
 
-    const trade: Omit<Trade, "id"> = {
+    const tradeData = {
       ticker: ticker.toUpperCase(),
       date,
       account,
@@ -114,23 +137,36 @@ export function TradeForm({ onSubmit, onClose }: TradeFormProps) {
       screenshots,
     }
 
-    onSubmit(trade)
+    if (initialTrade) {
+      onSubmit({ ...tradeData, id: initialTrade.id })
+    } else {
+      onSubmit(tradeData)
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-fade-in">
-      <div className="glass-strong mx-4 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl p-6 sm:p-8 animate-slide-up">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="trade-form-title"
+    >
+      <div className="mx-4 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/[0.08] bg-[hsl(240,8%,8%)] p-6 sm:p-8 shadow-2xl animate-slide-up">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-foreground">New Trade</h2>
-            <p className="text-sm text-muted-foreground">Log your trade details</p>
+            <h2 id="trade-form-title" className="text-xl font-bold text-foreground">
+              {initialTrade ? "Редактировать сделку" : "Новая сделка"}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {initialTrade ? "Измените данные и сохраните" : "Заполните данные сделки"}
+            </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            aria-label="Close form"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
+            aria-label="Закрыть"
           >
             <X className="h-4 w-4" />
           </button>
@@ -508,15 +544,21 @@ export function TradeForm({ onSubmit, onClose }: TradeFormProps) {
               onClick={onClose}
               className="rounded-xl border-border/30 bg-transparent text-foreground hover:bg-secondary"
             >
-              Cancel
+              Отмена
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={!ticker || !date}
               className="gap-2 rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
             >
-              <Plus className="h-4 w-4" />
-              Add Trade
+              {initialTrade ? (
+                "Сохранить"
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" />
+                  Добавить сделку
+                </>
+              )}
             </Button>
           </div>
         </div>

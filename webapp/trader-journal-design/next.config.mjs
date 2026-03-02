@@ -1,8 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "export",
-  basePath: "/app",
-  assetPrefix: "/app/",
+  // В dev сайт по корню (localhost:3000), после экспорта — по /app
+  ...(process.env.NODE_ENV === "production" && {
+    basePath: "/app",
+    assetPrefix: "/app/",
+  }),
   typescript: {
     ignoreBuildErrors: true,
   },

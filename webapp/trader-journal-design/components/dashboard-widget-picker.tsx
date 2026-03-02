@@ -19,9 +19,11 @@ import {
 interface DashboardWidgetPickerProps {
   currentWidgets: WidgetId[]
   onApply: (widgets: WidgetId[]) => void
+  /** Toolbar variant: gear + "Manage widgets" label */
+  variant?: "default" | "toolbar"
 }
 
-export function DashboardWidgetPicker({ currentWidgets, onApply }: DashboardWidgetPickerProps) {
+export function DashboardWidgetPicker({ currentWidgets, onApply, variant = "default" }: DashboardWidgetPickerProps) {
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<WidgetId[]>(() => currentWidgets)
 
@@ -29,6 +31,8 @@ export function DashboardWidgetPicker({ currentWidgets, onApply }: DashboardWidg
     setSelected([...currentWidgets])
     setOpen(true)
   }
+
+  const isToolbar = variant === "toolbar"
 
   const toggleWidget = (id: WidgetId) => {
     setSelected((prev) =>
@@ -70,10 +74,14 @@ export function DashboardWidgetPicker({ currentWidgets, onApply }: DashboardWidg
         variant="outline"
         size="sm"
         onClick={handleOpen}
-        className="gap-2 rounded-xl border-border/30 bg-transparent text-muted-foreground hover:bg-secondary hover:text-foreground"
+        className={
+          isToolbar
+            ? "h-8 gap-1.5 rounded-lg border-white/[0.06] bg-white/[0.02] px-2.5 text-xs text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
+            : "gap-2 rounded-xl border-border/30 bg-transparent text-muted-foreground hover:bg-secondary hover:text-foreground"
+        }
       >
-        <Settings2 className="h-4 w-4" />
-        Настроить виджеты
+        <Settings2 className={isToolbar ? "h-3.5 w-3.5" : "h-4 w-4"} />
+        {isToolbar ? "Manage widgets" : "New Template"}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>

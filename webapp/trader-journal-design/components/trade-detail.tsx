@@ -1,6 +1,6 @@
 "use client"
 
-import { X, ArrowUpRight, ArrowDownRight, Minus, Trash2 } from "lucide-react"
+import { X, ArrowUpRight, ArrowDownRight, Minus, Trash2, Pencil } from "lucide-react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -9,24 +9,30 @@ import type { Trade } from "@/lib/types"
 interface TradeDetailProps {
   trade: Trade
   onClose: () => void
+  onEdit?: (trade: Trade) => void
   onDelete?: () => void | Promise<void>
 }
 
-export function TradeDetail({ trade, onClose, onDelete }: TradeDetailProps) {
+export function TradeDetail({ trade, onClose, onEdit, onDelete }: TradeDetailProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-fade-in">
-      <div className="glass-strong mx-4 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl p-6 sm:p-8 animate-slide-up">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="trade-detail-title"
+    >
+      <div className="mx-4 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/[0.08] bg-[hsl(240,8%,8%)] p-6 sm:p-8 shadow-2xl animate-slide-up">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div
               className={cn(
-                "flex h-12 w-12 items-center justify-center rounded-2xl",
+                "flex h-12 w-12 items-center justify-center rounded-xl",
                 trade.result === "TP"
-                  ? "bg-success/15"
+                  ? "bg-success/10"
                   : trade.result === "SL"
-                    ? "bg-destructive/15"
-                    : "bg-muted"
+                    ? "bg-destructive/10"
+                    : "bg-white/[0.06]"
               )}
             >
               {trade.result === "TP" ? (
@@ -38,17 +44,29 @@ export function TradeDetail({ trade, onClose, onDelete }: TradeDetailProps) {
               )}
             </div>
             <div>
-              <h2 className="text-xl font-bold text-foreground">{trade.ticker}</h2>
+              <h2 id="trade-detail-title" className="text-xl font-bold text-foreground">{trade.ticker}</h2>
               <p className="text-sm text-muted-foreground">{trade.date}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {onEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-lg border-white/[0.06] text-foreground hover:bg-white/[0.04]"
+                onClick={() => { onEdit(trade); onClose() }}
+                aria-label="Редактировать сделку"
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
             {onDelete && (
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-lg border-destructive/50 text-destructive hover:bg-destructive/10"
+                className="rounded-lg border-destructive/30 text-destructive hover:bg-destructive/10"
                 onClick={onDelete}
+                aria-label="Удалить сделку"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -56,8 +74,8 @@ export function TradeDetail({ trade, onClose, onDelete }: TradeDetailProps) {
             <button
               type="button"
               onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-              aria-label="Close details"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
+              aria-label="Закрыть"
             >
               <X className="h-4 w-4" />
             </button>
@@ -66,25 +84,25 @@ export function TradeDetail({ trade, onClose, onDelete }: TradeDetailProps) {
 
         {/* Key metrics */}
         <div className="mb-6 grid grid-cols-3 gap-3">
-          <div className="rounded-xl bg-secondary/50 p-3 text-center">
-            <p className="text-xs text-muted-foreground">PnL</p>
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">PnL</p>
             <p
               className={cn(
-                "text-lg font-bold font-mono",
+                "text-lg font-bold font-mono tabular-nums",
                 trade.pnl > 0 ? "text-success" : trade.pnl < 0 ? "text-destructive" : "text-foreground"
               )}
             >
               {trade.pnl > 0 ? "+" : ""}
-              {trade.pnl.toFixed(2)}%
+              {trade.pnl.toFixed(2)}
             </p>
           </div>
-          <div className="rounded-xl bg-secondary/50 p-3 text-center">
-            <p className="text-xs text-muted-foreground">RR</p>
-            <p className="text-lg font-bold font-mono text-foreground">1:{trade.rr.toFixed(1)}</p>
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">RR</p>
+            <p className="text-lg font-bold font-mono text-foreground tabular-nums">1:{trade.rr.toFixed(1)}</p>
           </div>
-          <div className="rounded-xl bg-secondary/50 p-3 text-center">
-            <p className="text-xs text-muted-foreground">Risk</p>
-            <p className="text-lg font-bold font-mono text-foreground">{trade.risk}%</p>
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">Risk</p>
+            <p className="text-lg font-bold font-mono text-foreground tabular-nums">{trade.risk}%</p>
           </div>
         </div>
 
@@ -96,7 +114,7 @@ export function TradeDetail({ trade, onClose, onDelete }: TradeDetailProps) {
           <DetailRow label="Account" value={trade.account} />
           <DetailRow label="Session" value={trade.session} />
 
-          {trade.context.length > 0 && (
+          {trade.context.length > 0 ? (
             <div className="flex flex-col gap-1">
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Context</span>
               <div className="flex flex-wrap gap-1.5">
@@ -105,9 +123,9 @@ export function TradeDetail({ trade, onClose, onDelete }: TradeDetailProps) {
                 ))}
               </div>
             </div>
-          )}
+          ) : null}
 
-          {trade.setup.length > 0 && (
+          {trade.setup.length > 0 ? (
             <div className="flex flex-col gap-1">
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Setup</span>
               <div className="flex flex-wrap gap-1.5">
@@ -116,9 +134,9 @@ export function TradeDetail({ trade, onClose, onDelete }: TradeDetailProps) {
                 ))}
               </div>
             </div>
-          )}
+          ) : null}
 
-          {trade.emotions.length > 0 && (
+          {trade.emotions.length > 0 ? (
             <div className="flex flex-col gap-1">
               <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Emotions</span>
               <div className="flex flex-wrap gap-1.5">
@@ -127,7 +145,7 @@ export function TradeDetail({ trade, onClose, onDelete }: TradeDetailProps) {
                 ))}
               </div>
             </div>
-          )}
+          ) : null}
 
           {trade.entryDetails && (
             <div className="flex flex-col gap-1">

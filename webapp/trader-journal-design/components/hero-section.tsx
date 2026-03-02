@@ -1,165 +1,233 @@
 "use client"
 
-import { ArrowRight, TrendingUp, Shield, Zap, BarChart3 } from "lucide-react"
+import dynamic from "next/dynamic"
+import { ArrowRight, TrendingUp, Shield, BarChart3, Activity, Zap, BookOpen, PieChart } from "lucide-react"
 import { Button } from "@/components/ui/button"
+
+const HeroIllustration = dynamic(
+  () => import("@/components/hero-illustration").then((m) => m.HeroIllustration),
+  { ssr: false }
+)
 
 interface HeroSectionProps {
   onNavigate: (tab: string) => void
+  tradeCount?: number
+  totalPnl?: number
 }
 
-const stats = [
-  { value: "99.2%", label: "Доступность", icon: Zap },
-  { value: "50K+", label: "Сделок записано", icon: TrendingUp },
-  { value: "256-bit", label: "Шифрование", icon: Shield },
-  { value: "Real-time", label: "Аналитика", icon: BarChart3 },
+const features = [
+  {
+    icon: BarChart3,
+    title: "50+ метрик",
+    desc: "Win rate, drawdown, profit factor, R:R и многое другое",
+  },
+  {
+    icon: Zap,
+    title: "Авто-синхронизация",
+    desc: "Подключите биржу по API — сделки импортируются сами",
+  },
+  {
+    icon: BookOpen,
+    title: "Журнал + контекст",
+    desc: "Скриншоты, эмоции, setup, context — всё в одном месте",
+  },
+  {
+    icon: PieChart,
+    title: "Кастомные дашборды",
+    desc: "Настройте виджеты под свой стиль торговли",
+  },
 ]
 
-export function HeroSection({ onNavigate }: HeroSectionProps) {
+export function HeroSection({ onNavigate, tradeCount, totalPnl }: HeroSectionProps) {
   return (
-    <section className="relative min-h-screen overflow-hidden bg-background">
-      {/* Background layers */}
+    <section className="relative overflow-hidden">
+      {/* Background */}
       <div className="absolute inset-0 bg-grid" />
-      <div className="absolute inset-0 bg-radial" />
+      <div className="absolute inset-0 bg-radial-hero" />
+      <div className="absolute inset-0 bg-noise" />
 
-      {/* Decorative circles */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[600px] w-[600px] rounded-full border border-border/20 opacity-30" />
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[400px] w-[400px] rounded-full border border-border/20 opacity-20" />
+      {/* Animated gradient orbs */}
+      <div className="absolute top-10 left-[10%] h-[500px] w-[500px] rounded-full bg-accent/[0.08] blur-[140px] animate-float-slow" />
+      <div className="absolute top-[40%] right-[5%] h-[400px] w-[400px] rounded-full bg-indigo-500/[0.06] blur-[120px] animate-float-slow" style={{ animationDelay: "-3s" }} />
+      <div className="absolute bottom-10 left-[30%] h-[300px] w-[300px] rounded-full bg-purple-600/[0.05] blur-[100px] animate-float-slow" style={{ animationDelay: "-6s" }} />
 
-      <div className="relative mx-auto max-w-7xl px-4 pt-32 pb-20 sm:px-6 lg:px-8">
-        <div className="grid items-center gap-12 lg:grid-cols-2">
-          {/* Left side - Content */}
-          <div className="flex flex-col gap-8">
-            {/* Tag */}
-            <div className="flex items-center gap-2 animate-slide-up" style={{ animationDelay: "0.1s" }}>
-              <div className="flex items-center gap-2 rounded-full glass px-4 py-1.5">
-                <span className="h-2 w-2 rounded-full bg-accent animate-pulse-glow" />
-                <span className="text-xs font-medium tracking-wider uppercase text-muted-foreground">
+      <div className="relative mx-auto max-w-7xl px-4 pt-28 pb-12 sm:px-6 lg:px-8">
+        {/* Main hero: 2-column layout */}
+        <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
+          {/* Left */}
+          <div className="flex flex-col gap-7">
+            {/* Badge */}
+            <div className="animate-slide-up" style={{ animationDelay: "0.1s" }}>
+              <div className="inline-flex items-center gap-2.5 rounded-full border border-accent/20 bg-accent/[0.06] px-4 py-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-accent animate-pulse-ring" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+                </span>
+                <span className="text-xs font-semibold tracking-widest uppercase text-accent">
                   Трейдинг-журнал
                 </span>
               </div>
             </div>
 
             {/* Heading */}
-            <div className="animate-slide-up" style={{ animationDelay: "0.2s" }}>
-              <h1 className="text-4xl font-bold leading-tight tracking-tight text-foreground sm:text-5xl lg:text-6xl text-balance">
-                Самый{" "}
-                <span className="text-gradient">удобный</span>{" "}
-                трейдинг-журнал
-              </h1>
-            </div>
+            <h1
+              className="text-4xl font-extrabold leading-[1.08] tracking-tight text-foreground sm:text-5xl lg:text-6xl text-balance animate-slide-up"
+              style={{ animationDelay: "0.2s" }}
+            >
+              Знай свой{" "}
+              <span className="text-gradient">edge</span>.{" "}
+              <br className="hidden sm:block" />
+              Торгуй с{" "}
+              <span className="text-gradient-warm">уверенностью</span>.
+            </h1>
 
-            {/* Subheading */}
+            {/* Subtitle */}
             <p
-              className="max-w-lg text-lg leading-relaxed text-muted-foreground animate-slide-up"
+              className="max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg animate-slide-up"
               style={{ animationDelay: "0.3s" }}
             >
-              Фиксируйте каждую сделку, анализируйте результаты и находите паттерны
-              для роста прибыли. Для серьёзных трейдеров.
+              Фиксируйте каждую сделку, анализируйте результаты и находите паттерны для роста прибыли.
             </p>
 
-            {/* CTA Buttons */}
-            <div
-              className="flex flex-wrap items-center gap-4 animate-slide-up"
-              style={{ animationDelay: "0.4s" }}
-            >
+            {/* CTA */}
+            <div className="flex flex-wrap items-center gap-3 animate-slide-up" style={{ animationDelay: "0.4s" }}>
               <Button
                 size="lg"
-                className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-full px-8 gap-2 group shadow-lg shadow-accent/25"
+                className="rounded-xl px-7 gap-2 group bg-accent text-white hover:bg-accent/90 shadow-xl shadow-accent/30 transition-all hover:shadow-accent/40 hover:-translate-y-0.5 text-sm font-semibold"
                 onClick={() => onNavigate("dashboard")}
               >
-                Открыть дашборд
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                Начать бесплатно
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Button>
               <Button
                 variant="outline"
                 size="lg"
-                className="rounded-full px-8 border-border/50 bg-transparent text-foreground hover:bg-secondary"
+                className="rounded-xl px-7 border-white/[0.08] bg-white/[0.03] text-foreground hover:bg-white/[0.06] text-sm font-semibold"
                 onClick={() => onNavigate("journal")}
               >
                 Журнал сделок
               </Button>
             </div>
 
-            {/* Supported */}
-            <div
-              className="flex items-center gap-4 pt-4 animate-slide-up"
-              style={{ animationDelay: "0.5s" }}
-            >
-              <span className="text-xs font-medium tracking-wider uppercase text-muted-foreground">
-                Поддержка
-              </span>
-              <div className="flex items-center gap-3">
-                {["Bybit", "BingX", "Binance", "OKX"].map((exchange) => (
-                  <div
-                    key={exchange}
-                    className="flex h-8 items-center rounded-full glass px-3 text-xs font-medium text-muted-foreground"
-                  >
-                    {exchange}
-                  </div>
-                ))}
-              </div>
+            {/* Live stats row */}
+            <div className="flex items-center gap-6 animate-slide-up" style={{ animationDelay: "0.5s" }}>
+              {tradeCount != null ? (
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-accent/60" />
+                  <span className="text-sm font-mono font-semibold text-foreground tabular-nums">{tradeCount}</span>
+                  <span className="text-xs text-muted-foreground/60">сделок</span>
+                </div>
+              ) : null}
+              {totalPnl != null ? (
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-success/60" />
+                  <span className={`text-sm font-mono font-semibold tabular-nums ${totalPnl >= 0 ? "text-success" : "text-destructive"}`}>
+                    {totalPnl >= 0 ? "+" : ""}{totalPnl.toFixed(2)}
+                  </span>
+                  <span className="text-xs text-muted-foreground/60">PnL</span>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Exchange badges */}
+            <div className="flex items-center gap-2.5 animate-slide-up" style={{ animationDelay: "0.55s" }}>
+              <span className="text-[10px] font-semibold tracking-wider uppercase text-muted-foreground/50">Биржи</span>
+              {["Bybit", "BingX", "Binance", "OKX"].map((ex) => (
+                <span
+                  key={ex}
+                  className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 text-[11px] font-medium text-muted-foreground/70"
+                >
+                  {ex}
+                </span>
+              ))}
             </div>
           </div>
 
-          {/* Right side - 3D visual */}
-          <div
-            className="relative flex items-center justify-center animate-slide-up"
-            style={{ animationDelay: "0.3s" }}
-          >
-            <div className="relative aspect-square w-full max-w-lg">
-              {/* Glow behind image */}
-              <div className="absolute inset-0 rounded-3xl bg-accent/10 blur-3xl" />
+          {/* Right: Illustration + floating cards */}
+          <div className="relative flex items-center justify-center animate-slide-up" style={{ animationDelay: "0.3s" }}>
+            <HeroIllustration />
 
-              {/* Hero image */}
-              <div className="relative animate-float rounded-3xl overflow-hidden">
-                <div className="relative w-full aspect-square rounded-3xl overflow-hidden bg-gradient-to-br from-accent/20 to-accent/5 border border-border/30 flex items-center justify-center">
-                  <img
-                    src="/app/hero-3d.png"
-                    alt="Trading analytics"
-                    className="w-full h-full object-contain"
-                  />
+            {/* Floating card: PnL */}
+            <div
+              className="absolute -bottom-2 -left-4 rounded-xl border border-white/[0.08] bg-[hsl(240,8%,8%)]/90 backdrop-blur-xl p-3.5 shadow-2xl animate-float-slow"
+              style={{ animationDelay: "-1s" }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-success/10">
+                  <TrendingUp className="h-4 w-4 text-success" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-foreground tabular-nums font-mono">
+                    {totalPnl != null ? `${totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}` : "+12.45"}%
+                  </p>
+                  <p className="text-[10px] text-muted-foreground/60">Total PnL</p>
                 </div>
               </div>
+            </div>
 
-              {/* Floating stats card */}
-              <div className="absolute -bottom-4 -left-4 glass rounded-2xl p-4 animate-slide-up" style={{ animationDelay: "0.6s" }}>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/20">
-                    <TrendingUp className="h-5 w-5 text-success" />
-                  </div>
-                  <div>
-                  <p className="text-sm font-semibold text-foreground">+14.25%</p>
-                  <p className="text-xs text-muted-foreground">PnL за неделю</p>
-                  </div>
-                </div>
+            {/* Floating card: Shield */}
+            <div
+              className="absolute -top-2 right-4 rounded-xl border border-white/[0.08] bg-[hsl(240,8%,8%)]/90 backdrop-blur-xl px-3.5 py-2.5 shadow-2xl animate-float-slow"
+              style={{ animationDelay: "-4s" }}
+            >
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-accent" />
+                <span className="text-[11px] font-semibold text-foreground">Защищённая аналитика</span>
               </div>
+            </div>
 
-              {/* Floating badge */}
-              <div className="absolute -top-2 -right-2 glass rounded-2xl px-4 py-3 animate-slide-up" style={{ animationDelay: "0.7s" }}>
-                <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-accent" />
-                  <span className="text-xs font-medium text-foreground">Защищённая аналитика</span>
-                </div>
-              </div>
+            {/* Floating card: Win Rate */}
+            <div
+              className="absolute top-1/2 -right-6 rounded-xl border border-white/[0.08] bg-[hsl(240,8%,8%)]/90 backdrop-blur-xl p-3 shadow-2xl animate-float-slow"
+              style={{ animationDelay: "-2.5s" }}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Win Rate</p>
+              <p className="text-lg font-bold text-accent tabular-nums font-mono">67.2%</p>
             </div>
           </div>
         </div>
 
-        {/* Stats bar */}
-        <div
-          className="mt-20 grid grid-cols-2 gap-4 sm:grid-cols-4 animate-slide-up"
-          style={{ animationDelay: "0.6s" }}
-        >
-          {stats.map((stat) => (
+        {/* Features grid */}
+        <div className="mt-28 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {features.map((f, i) => (
             <div
-              key={stat.label}
-              className="glass glass-hover rounded-2xl p-6 text-center"
+              key={f.title}
+              className="group relative rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6 transition-all hover:border-accent/20 hover:bg-accent/[0.03] animate-slide-up"
+              style={{ animationDelay: `${0.6 + i * 0.1}s` }}
             >
-              <stat.icon className="mx-auto mb-3 h-5 w-5 text-accent" />
-              <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{stat.label}</p>
+              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 transition-colors group-hover:bg-accent/20">
+                <f.icon className="h-5 w-5 text-accent" />
+              </div>
+              <h3 className="text-sm font-semibold text-foreground">{f.title}</h3>
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground/70">{f.desc}</p>
             </div>
           ))}
+        </div>
+
+        {/* Social proof strip */}
+        <div
+          className="mt-16 flex flex-col items-center gap-4 animate-slide-up"
+          style={{ animationDelay: "1s" }}
+        >
+          <p className="text-xs font-semibold tracking-wider uppercase text-muted-foreground/50">
+            Трейдеры уже используют TradeVault
+          </p>
+          <div className="flex items-center gap-6">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-foreground tabular-nums">500+</p>
+              <p className="text-[10px] text-muted-foreground/50">Трейдеров</p>
+            </div>
+            <div className="h-8 w-px bg-white/[0.06]" />
+            <div className="text-center">
+              <p className="text-2xl font-bold text-foreground tabular-nums">50K+</p>
+              <p className="text-[10px] text-muted-foreground/50">Сделок</p>
+            </div>
+            <div className="h-8 w-px bg-white/[0.06]" />
+            <div className="text-center">
+              <p className="text-2xl font-bold text-foreground tabular-nums">99.9%</p>
+              <p className="text-[10px] text-muted-foreground/50">Uptime</p>
+            </div>
+          </div>
         </div>
       </div>
     </section>

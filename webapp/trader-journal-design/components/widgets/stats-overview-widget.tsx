@@ -22,7 +22,7 @@ export function StatsOverviewWidget({ trades }: StatsOverviewWidgetProps) {
       />
       <StatCard
         label="Total PnL"
-        value={`${stats.totalPnl >= 0 ? "+" : ""}${stats.totalPnl.toFixed(2)}%`}
+        value={`${stats.totalPnl >= 0 ? "+" : ""}${stats.totalPnl.toFixed(2)}`}
         positive={stats.totalPnl >= 0}
         icon={DollarSign}
       />
@@ -40,8 +40,8 @@ export function StatsOverviewWidget({ trades }: StatsOverviewWidgetProps) {
       />
       <StatCard label="Trades" value={stats.totalTrades.toString()} icon={BarChart3} />
       <StatCard label="Avg RR" value={`1:${stats.avgRR.toFixed(1)}`} icon={Activity} />
-      <StatCard label="Best" value={`+${stats.bestTrade.toFixed(2)}%`} icon={TrendingUp} />
-      <StatCard label="Worst" value={`${stats.worstTrade.toFixed(2)}%`} icon={TrendingDown} />
+      <StatCard label="Best" value={`+${stats.bestTrade.toFixed(2)}`} icon={TrendingUp} />
+      <StatCard label="Worst" value={`${stats.worstTrade.toFixed(2)}`} icon={TrendingDown} />
     </div>
   )
 }

@@ -311,12 +311,12 @@
                 </div>
             </div>
 
-            <!-- Торговые метрики -->
+            <!-- Торговые метрики по Prometheus -->
             <div class="metrics-grid">
                 <div class="metric-card">
                     <h3>📈 Сделки</h3>
                     <div class="metric-value" id="total-trades">-</div>
-                    <div class="metric-description">Всего сделок</div>
+                    <div class="metric-description">Всего сделок (по метрикам Prometheus)</div>
                     <div class="metric-trend">
                         <span class="trend-up">Активность</span>
                     </div>
@@ -368,6 +368,81 @@
                 </div>
             </div>
 
+            <!-- Живой торговый дашборд по /api/trades и /api/stats -->
+            <div class="charts-section" style="margin-top: 10px;">
+                <h2>💹 Журнал PnL и сделки</h2>
+
+                <!-- Фильтры по датам и инструменту -->
+                <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; align-items: flex-end;">
+                    <div>
+                        <label for="trades-from" style="font-size: 0.85rem; color: #4b5563;">Дата с</label><br>
+                        <input type="date" id="trades-from" style="padding: 6px 10px; border-radius: 8px; border: 1px solid #e5e7eb; min-width: 150px;">
+                    </div>
+                    <div>
+                        <label for="trades-to" style="font-size: 0.85rem; color: #4b5563;">Дата по</label><br>
+                        <input type="date" id="trades-to" style="padding: 6px 10px; border-radius: 8px; border: 1px solid #e5e7eb; min-width: 150px;">
+                    </div>
+                    <div>
+                        <label for="trades-ticker" style="font-size: 0.85rem; color: #4b5563;">Инструмент</label><br>
+                        <select id="trades-ticker" style="padding: 7px 10px; border-radius: 8px; border: 1px solid #e5e7eb; min-width: 160px;">
+                            <option value="all">Все тикеры</option>
+                        </select>
+                    </div>
+                    <button class="refresh-button" style="margin-left: auto; margin-top: 0;" onclick="refreshTradeAnalytics()">
+                        📊 Применить фильтры
+                    </button>
+                </div>
+
+                <!-- Карточки сводной статистики по /api/stats и /api/trades -->
+                <div class="metrics-grid" style="margin-bottom: 20px;">
+                    <div class="metric-card" style="border-left-color: #10b981;">
+                        <h3>💵 Total PnL</h3>
+                        <div class="metric-value" id="trades-total-pnl">-</div>
+                        <div class="metric-description">Суммарный PnL по выбранному периоду</div>
+                    </div>
+                    <div class="metric-card" style="border-left-color: #3b82f6;">
+                        <h3>📆 PnL / день</h3>
+                        <div class="metric-value" id="trades-daily-pnl">-</div>
+                        <div class="metric-description">Средний дневной результат</div>
+                    </div>
+                    <div class="metric-card" style="border-left-color: #a855f7;">
+                        <h3>🎯 Win Rate</h3>
+                        <div class="metric-value" id="trades-winrate">-</div>
+                        <div class="metric-description">Реальный Win Rate по сделкам</div>
+                    </div>
+                    <div class="metric-card" style="border-left-color: #f97316;">
+                        <h3>📊 Кол-во сделок</h3>
+                        <div class="metric-value" id="trades-count">-</div>
+                        <div class="metric-description">Сделок за выбранный период</div>
+                    </div>
+                </div>
+
+                <!-- Графики по сделкам -->
+                <div class="chart-container">
+                    <canvas id="daily-pnl-chart"></canvas>
+                </div>
+                <div class="chart-container" style="margin-top: 24px;">
+                    <canvas id="trades-distribution-chart"></canvas>
+                </div>
+
+                <!-- Таблица последних сделок -->
+                <div style="margin-top: 24px; overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                        <thead>
+                            <tr style="background: #f9fafb;">
+                                <th style="text-align: left; padding: 8px 10px; border-bottom: 1px solid #e5e7eb;">Дата</th>
+                                <th style="text-align: left; padding: 8px 10px; border-bottom: 1px solid #e5e7eb;">Тикер</th>
+                                <th style="text-align: left; padding: 8px 10px; border-bottom: 1px solid #e5e7eb;">Сессия</th>
+                                <th style="text-align: left; padding: 8px 10px; border-bottom: 1px solid #e5e7eb;">Направление</th>
+                                <th style="text-align: right; padding: 8px 10px; border-bottom: 1px solid #e5e7eb;">PnL</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trades-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Графики производительности -->
             <div class="charts-section">
                 <h2>📊 Графики производительности</h2>
@@ -385,11 +460,19 @@
         let metricsData = {};
         let chartDataHistory = { labels: [], responseTime: [], memory: [] };
 
+        // Торговая аналитика по /api/trades и /api/stats
+        let dailyPnlChart;
+        let tradesDistributionChart;
+        let currentTrades = [];
+
         // Инициализация при загрузке страницы
         document.addEventListener('DOMContentLoaded', function() {
             initializeChart();
+            initializeTradeDashboard();
             refreshMetrics();
+            refreshTradeAnalytics();
             setInterval(refreshMetrics, 30000);
+            setInterval(refreshTradeAnalytics, 60000);
         });
 
         // Инициализация графика
@@ -461,7 +544,7 @@
             });
         }
 
-        // Обновление метрик
+        // Обновление метрик (Prometheus /metrics)
         async function refreshMetrics() {
             try {
                 showLoading(true);
@@ -610,6 +693,280 @@
         function hideMessages() {
             document.getElementById('error').style.display = 'none';
             document.getElementById('success').style.display = 'none';
+        }
+
+        // --- Торговая аналитика: /api/trades и /api/stats ---
+
+        function initializeTradeDashboard() {
+            // Заполняем дефолтные даты: последние 30 дней
+            const toInput = document.getElementById('trades-to');
+            const fromInput = document.getElementById('trades-from');
+            const today = new Date();
+            const fromDate = new Date(today.getTime() - 29 * 24 * 60 * 60 * 1000);
+
+            toInput.value = today.toISOString().slice(0, 10);
+            fromInput.value = fromDate.toISOString().slice(0, 10);
+
+            // Инициализация графиков
+            const dailyCtx = document.getElementById('daily-pnl-chart').getContext('2d');
+            dailyPnlChart = new Chart(dailyCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'PnL по дням',
+                        data: [],
+                        backgroundColor: function(context) {
+                            const value = context.raw || 0;
+                            return value >= 0 ? 'rgba(16, 185, 129, 0.7)' : 'rgba(239, 68, 68, 0.8)';
+                        },
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { ticks: { maxTicksLimit: 10 } },
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'PnL' }
+                        }
+                    }
+                }
+            });
+
+            const distCtx = document.getElementById('trades-distribution-chart').getContext('2d');
+            tradesDistributionChart = new Chart(distCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Количество сделок по тикерам',
+                        data: [],
+                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { ticks: { maxRotation: 45, minRotation: 0 } },
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Сделок' }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function refreshTradeAnalytics() {
+            try {
+                const { fromIso, toIso } = getTradeFilterRange();
+                const ticker = document.getElementById('trades-ticker').value || 'all';
+
+                // Загружаем сделки
+                const tradesUrl = buildTradesUrl(fromIso, toIso);
+                const tradesResponse = await fetch(tradesUrl);
+                if (!tradesResponse.ok) {
+                    throw new Error('Ошибка HTTP при загрузке сделок: ' + tradesResponse.status);
+                }
+                currentTrades = await tradesResponse.json();
+
+                // Обновляем выпадающий список тикеров
+                updateTickerFilter(currentTrades, ticker);
+
+                // Применяем фильтр по тикеру на клиенте
+                const filteredTrades = ticker === 'all'
+                    ? currentTrades
+                    : currentTrades.filter(t => (t.ticker || '').toUpperCase() === ticker.toUpperCase());
+
+                // Загружаем агрегированную статистику
+                let stats = null;
+                try {
+                    const statsUrl = buildStatsUrl(fromIso, toIso);
+                    const statsResponse = await fetch(statsUrl);
+                    if (statsResponse.ok) {
+                        stats = await statsResponse.json();
+                    }
+                } catch (e) {
+                    console.warn('Не удалось загрузить /api/stats:', e);
+                }
+
+                updateTradeSummary(filteredTrades, stats);
+                updateDailyPnlChart(filteredTrades);
+                updateTradesDistributionChart(filteredTrades);
+                updateTradesTable(filteredTrades);
+            } catch (e) {
+                console.error('Ошибка торговой аналитики:', e);
+                showError('Не удалось загрузить торговые данные: ' + e.message);
+            }
+        }
+
+        function getTradeFilterRange() {
+            const fromValue = document.getElementById('trades-from').value;
+            const toValue = document.getElementById('trades-to').value;
+
+            // .NET спокойно парсит "YYYY-MM-DD", но для "до" добавим конец дня
+            const fromIso = fromValue ? (fromValue + 'T00:00:00') : '';
+            const toIso = toValue ? (toValue + 'T23:59:59') : '';
+            return { fromIso, toIso };
+        }
+
+        function buildTradesUrl(fromIso, toIso) {
+            const params = new URLSearchParams();
+            if (fromIso) params.append('from', fromIso);
+            if (toIso) params.append('to', toIso);
+            const qs = params.toString();
+            return qs ? '/api/trades?' + qs : '/api/trades';
+        }
+
+        function buildStatsUrl(fromIso, toIso) {
+            const params = new URLSearchParams();
+            if (fromIso) params.append('from', fromIso);
+            if (toIso) params.append('to', toIso);
+            const qs = params.toString();
+            return qs ? '/api/stats?' + qs : '/api/stats';
+        }
+
+        function updateTickerFilter(trades, currentValue) {
+            const select = document.getElementById('trades-ticker');
+            const prev = currentValue || select.value || 'all';
+
+            const tickers = Array.from(new Set(
+                trades
+                    .map(t => (t.ticker || '').toUpperCase())
+                    .filter(t => t)
+            )).sort();
+
+            // Пересобираем список
+            select.innerHTML = '<option value="all">Все тикеры</option>' +
+                tickers.map(t => `<option value="${t}">${t}</option>`).join('');
+
+            if (prev && tickers.includes(prev)) {
+                select.value = prev;
+            } else {
+                select.value = 'all';
+            }
+        }
+
+        function updateTradeSummary(trades, stats) {
+            if (!Array.isArray(trades) || trades.length === 0) {
+                updateMetric('trades-total-pnl', '-');
+                updateMetric('trades-daily-pnl', '-');
+                updateMetric('trades-winrate', '-');
+                updateMetric('trades-count', '0');
+                return;
+            }
+
+            const totalPnL = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+            const wins = trades.filter(t => (t.pnl || 0) > 0).length;
+            const losses = trades.filter(t => (t.pnl || 0) < 0).length;
+            const winrate = wins + losses > 0 ? wins / (wins + losses) * 100 : 0;
+
+            // Кол-во уникальных дней в выборке
+            const uniqueDays = new Set(trades.map(t => formatDateKey(t.date))).size || 1;
+            const dailyPnl = totalPnL / uniqueDays;
+
+            updateMetric('trades-total-pnl', formatCurrency(totalPnL));
+            updateMetric('trades-daily-pnl', formatCurrency(dailyPnl));
+            updateMetric('trades-winrate', `${winrate.toFixed(1)}%`);
+            updateMetric('trades-count', trades.length.toString());
+
+            // Если есть серверная статистика — можно в будущем показать её отдельным текстом
+            if (stats && typeof stats.totalPnL === 'number') {
+                // Пока не подменяем значения, но оставляем крючок
+                console.debug('Server stats:', stats);
+            }
+        }
+
+        function updateDailyPnlChart(trades) {
+            const byDay = new Map();
+            trades.forEach(t => {
+                const key = formatDateKey(t.date);
+                const prev = byDay.get(key) || 0;
+                byDay.set(key, prev + (t.pnl || 0));
+            });
+
+            const labels = Array.from(byDay.keys()).sort();
+            const data = labels.map(d => byDay.get(d) || 0);
+
+            dailyPnlChart.data.labels = labels;
+            dailyPnlChart.data.datasets[0].data = data;
+            dailyPnlChart.update();
+        }
+
+        function updateTradesDistributionChart(trades) {
+            const byTicker = new Map();
+            trades.forEach(t => {
+                const ticker = (t.ticker || 'N/A').toUpperCase();
+                byTicker.set(ticker, (byTicker.get(ticker) || 0) + 1);
+            });
+
+            const labels = Array.from(byTicker.keys()).sort();
+            const data = labels.map(t => byTicker.get(t) || 0);
+
+            tradesDistributionChart.data.labels = labels;
+            tradesDistributionChart.data.datasets[0].data = data;
+            tradesDistributionChart.update();
+        }
+
+        function updateTradesTable(trades) {
+            const tbody = document.getElementById('trades-table-body');
+            tbody.innerHTML = '';
+
+            // Показываем максимум 20 последних по дате
+            const sorted = [...trades].sort((a, b) => {
+                const da = new Date(a.date);
+                const db = new Date(b.date);
+                return db - da;
+            }).slice(0, 20);
+
+            for (const t of sorted) {
+                const tr = document.createElement('tr');
+                const pnl = t.pnl || 0;
+                const pnlColor = pnl > 0 ? '#16a34a' : (pnl < 0 ? '#dc2626' : '#4b5563');
+
+                tr.innerHTML = `
+                    <td style="padding: 6px 10px; border-bottom: 1px solid #e5e7eb;">${formatDateTime(t.date)}</td>
+                    <td style="padding: 6px 10px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(t.ticker || '')}</td>
+                    <td style="padding: 6px 10px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(t.session || '')}</td>
+                    <td style="padding: 6px 10px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(t.direction || '')}</td>
+                    <td style="padding: 6px 10px; border-bottom: 1px solid #e5e7eb; text-align: right; color: ${pnlColor};">
+                        ${pnl === 0 ? '0.00' : pnl.toFixed(2)}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+
+        function formatDateKey(value) {
+            const d = new Date(value);
+            if (Number.isNaN(d.getTime())) return 'N/A';
+            return d.toISOString().slice(0, 10);
+        }
+
+        function formatDateTime(value) {
+            const d = new Date(value);
+            if (Number.isNaN(d.getTime())) return '';
+            return d.toLocaleString('ru-RU', {
+                year: '2-digit',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
         }
     </script>
 </body>

@@ -2,6 +2,7 @@ export const WIDGET_IDS = [
   "stats-overview",
   "pnl-chart",
   "daily-pnl",
+  "trading-calendar",
   "result-distribution",
   "session-performance",
   "tradingview-ticker",
@@ -14,6 +15,7 @@ export const WIDGET_LABELS: Record<WidgetId, string> = {
   "stats-overview": "Сводка статистики",
   "pnl-chart": "Кумулятивный PnL",
   "daily-pnl": "Дневной PnL",
+  "trading-calendar": "Торговый календарь",
   "result-distribution": "Распределение TP/SL/BE",
   "session-performance": "Эффективность по сессиям",
   "tradingview-ticker": "Курсы криптовалют (TradingView)",
@@ -24,7 +26,7 @@ const STORAGE_KEY = "trader-dashboard-widgets"
 
 export function getDashboardConfig(): WidgetId[] {
   if (typeof window === "undefined") {
-    return ["stats-overview", "pnl-chart", "tradingview-ticker", "result-distribution", "session-performance", "daily-pnl", "tradingview-chart"]
+    return ["stats-overview", "pnl-chart", "trading-calendar", "tradingview-ticker", "result-distribution", "session-performance", "daily-pnl", "tradingview-chart"]
   }
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
@@ -35,7 +37,7 @@ export function getDashboardConfig(): WidgetId[] {
   } catch {
     // ignore
   }
-  return ["stats-overview", "pnl-chart", "tradingview-ticker", "result-distribution", "session-performance", "daily-pnl", "tradingview-chart"]
+  return ["stats-overview", "pnl-chart", "trading-calendar", "tradingview-ticker", "result-distribution", "session-performance", "daily-pnl", "tradingview-chart"]
 }
 
 export function saveDashboardConfig(widgets: WidgetId[]): void {

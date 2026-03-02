@@ -406,7 +406,19 @@ using (var scope = host.Services.CreateScope())
         throw;
     }
 
-
+    // 3) Сидим фейковые сделки для дашборда, если у API-пользователя ещё нет сделок
+    try
+    {
+        var config = sp.GetRequiredService<IConfiguration>();
+        var userIdStr = config["Developer:UserId"];
+        var userId = long.TryParse(userIdStr, out var v) ? v : 1L;
+        var db = sp.GetRequiredService<TradeContext>();
+        await SeedData.SeedFakeTradesIfEmptyAsync(db, userId, logger);
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "SeedData: не удалось добавить фейковые сделки.");
+    }
 }
 
 await host.RunAsync();

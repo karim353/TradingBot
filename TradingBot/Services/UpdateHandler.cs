@@ -114,6 +114,15 @@ namespace TradingBot.Services
             return shortId;
         }
 
+        private static string EscapeHtml(string? value)
+        {
+            if (string.IsNullOrEmpty(value)) return "-";
+            return value
+                .Replace("&", "&amp;")
+                .Replace("<", "&lt;")
+                .Replace(">", "&gt;");
+        }
+
         /// <summary>
         /// Безопасно редактирует сообщение или отправляет новое, если редактирование невозможно
         /// </summary>
@@ -533,6 +542,7 @@ namespace TradingBot.Services
                 return;
             }
 
+            try { await bot.SendChatAction(chatId, ChatAction.Typing, cancellationToken: ct); } catch { }
             int totalTrades = trades.Count;
             decimal totalPnL = trades.Sum(t => t.PnL);
             decimal avgPnL = totalTrades > 0 ? totalPnL / totalTrades : 0;
@@ -684,6 +694,7 @@ namespace TradingBot.Services
                 }
             }
 
+            try { await bot.SendChatAction(chatId, ChatAction.UploadPhoto, cancellationToken: ct); } catch { }
             await using var fileStream = new FileStream(tmpPng, FileMode.Open, FileAccess.Read);
             await bot.SendPhoto(chatId, InputFile.FromStream(fileStream, "equity.png"),
                 caption: _uiManager.GetText("equity_curve", settings.Language),
@@ -745,6 +756,7 @@ namespace TradingBot.Services
                     if ((message.Photo?.Any() == true) || (message.Document != null && (message.Document.MimeType?.StartsWith("image/") ?? false)))
                     {
                         _logger.LogInformation($"📸 Processing image from UserId={userId}");
+                        try { await bot.SendChatAction(chatId, ChatAction.Typing, cancellationToken: cancellationToken); } catch { }
                         // Индикатор прогресса OCR
                         var progressMsg = await bot.SendMessage(chatId, _uiManager.GetText("processing_image", settings.Language), cancellationToken: cancellationToken);
                         try
@@ -787,7 +799,7 @@ namespace TradingBot.Services
                             }
 
                             var (confText, confKeyboard) = _uiManager.GetTradeConfirmationScreen(trade, tradeId, settings);
-                            var confMsg = await bot.SendMessage(chatId, confText, replyMarkup: confKeyboard, cancellationToken: cancellationToken);
+                            var confMsg = await bot.SendMessage(chatId, confText, replyMarkup: confKeyboard, replyParameters: new ReplyParameters { MessageId = message.MessageId }, cancellationToken: cancellationToken);
                             await SavePendingTradeAsync(userId, tradeId, confMsg.MessageId, trade);
                             await UpdateRecentSettingsAsync(userId, trade, settings);
                         }
@@ -959,12 +971,14 @@ namespace TradingBot.Services
                     if (_rateLimitingService.IsRateLimited(cbUserId, "callback"))
                     {
                         _logger.LogWarning("Пользователь {UserId} превысил лимит callback запросов", cbUserId);
-                        await bot.AnswerCallbackQuery(callback.Id, "⚠️ Слишком много запросов. Попробуйте позже.");
+                        await bot.AnswerCallbackQuery(callback.Id, "⚠️ Слишком много запросов. Попробуйте позже.", showAlert: true, cancellationToken: cancellationToken);
                         return;
                     }
                     
                     _logger.LogInformation($"📲 Callback from UserId={cbUserId}: {data}");
-                    await bot.AnswerCallbackQuery(callback.Id);
+                    bool answerLater = data.StartsWith("confirm_trade", StringComparison.OrdinalIgnoreCase);
+                    if (!answerLater)
+                        await bot.AnswerCallbackQuery(callback.Id, cancellationToken: cancellationToken);
 
                     var state = await GetUserStateAsync(cbUserId) ?? new UserState { Language = (await GetUserSettingsAsync(cbUserId)).Language };
                     var settings = await GetUserSettingsAsync(cbUserId);
@@ -1434,6 +1448,7 @@ namespace TradingBot.Services
                                 var pending = await GetPendingTradeByTradeIdAsync(cbUserId, tradeId);
                                 if (pending.HasValue)
                                 {
+                                    await bot.AnswerCallbackQuery(callback.Id, settings.Language == "ru" ? "Сохранено!" : "Saved!", cancellationToken: cancellationToken);
                                     var (trade, originalMsgId, _) = pending.Value;
                                     try { await bot.DeleteMessage(cbChatId, originalMsgId); } catch { }
                                     await SaveTradeAsync(trade, cbChatId, cbUserId, bot, settings, CancellationToken.None);
@@ -1441,6 +1456,7 @@ namespace TradingBot.Services
                                 }
                                 else
                                 {
+                                    await bot.AnswerCallbackQuery(callback.Id, cancellationToken: cancellationToken);
                                     await bot.SendMessage(cbChatId, _uiManager.GetText("trade_expired", settings.Language),
                                                           replyMarkup: _uiManager.GetMainMenu(settings));
                                 }
@@ -2585,15 +2601,29 @@ namespace TradingBot.Services
 
             await UpdateRecentSettingsAsync(userId, trade, settings);
 
-            var baseText = _uiManager.GetText("trade_saved", settings.Language, trade.Ticker ?? "-", trade.PnL);
+            string tickerEscaped = EscapeHtml(trade.Ticker);
+            string pnlSign = trade.PnL >= 0 ? "+" : "";
+            var baseText = settings.Language == "ru"
+                ? $"Сделка <b>{tickerEscaped}</b> (PnL <b>{pnlSign}{trade.PnL}%</b>) сохранена!"
+                : $"Trade <b>{tickerEscaped}</b> (PnL <b>{pnlSign}{trade.PnL}%</b>) saved!";
             var mainMenu = _uiManager.GetMainMenu(settings);
-            var sentMsg = await bot.SendMessage(chatId, baseText, replyMarkup: mainMenu, cancellationToken: ct);
+            var sentMsg = await bot.SendMessage(chatId, baseText, parseMode: ParseMode.Html, replyMarkup: mainMenu, linkPreviewOptions: new LinkPreviewOptions { IsDisabled = true }, cancellationToken: ct);
+
+            // Реакция ✅ на сообщение «сделка сохранена» (Bot API 7.0+, Telegram.Bot 22.9)
+            try
+            {
+                await bot.SetMessageReaction(chatId, sentMsg.MessageId, [new ReactionTypeEmoji { Emoji = "✅" }], cancellationToken: ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "SetMessageReaction skipped for MessageId={MessageId}", sentMsg.MessageId);
+            }
 
             if (_tradeStorage is NotionTradeStorage && !string.IsNullOrEmpty(trade.NotionPageId))
             {
                 await bot.EditMessageText(chatId, sentMsg.MessageId,
                     baseText + "\n\n" + _uiManager.GetText("trade_sent_notion", settings.Language),
-                    replyMarkup: mainMenu, cancellationToken: ct);
+                    parseMode: ParseMode.Html, replyMarkup: mainMenu, cancellationToken: ct);
             }
 
             if (settings.NotificationsEnabled)

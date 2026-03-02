@@ -16,122 +16,126 @@ const navItems = [
   { id: "journal", label: "Журнал" },
 ]
 
+const PRO_URL =
+  (typeof window !== "undefined" && (window as any).PRO_URL) ||
+  process.env.NEXT_PUBLIC_PRO_URL ||
+  "http://localhost:3000"
+
 export function Navbar({ activeTab, onTabChange }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 glass-strong">
+    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/[0.04] bg-[hsl(240,10%,4%)]/80 backdrop-blur-2xl">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-          {/* Logo */}
           <button
             type="button"
             onClick={() => onTabChange("home")}
-            className="flex items-center gap-2 transition-opacity hover:opacity-80"
+            className="flex items-center gap-2.5 transition-all active:scale-[0.97]"
+            aria-label="TradeVault, главная"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent">
-              <BarChart3 className="h-4 w-4 text-accent-foreground" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent/70">
+              <BarChart3 className="h-4 w-4 text-white" />
             </div>
-            <span className="text-lg font-bold tracking-tight text-foreground">
+            <span className="text-base font-bold tracking-tight text-foreground">
               TradeVault
             </span>
           </button>
 
-          {/* Desktop nav */}
-          <div className="hidden items-center gap-1 md:flex">
+          {/* Desktop pills */}
+          <div className="hidden items-center rounded-xl bg-white/[0.04] p-1 md:flex">
             {navItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => onTabChange(item.id)}
                 className={cn(
-                  "relative rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200",
+                  "rounded-lg px-4 py-2 text-[13px] font-medium transition-all duration-200",
                   activeTab === item.id
-                    ? "text-foreground bg-accent/10"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                    ? "bg-accent/20 text-white shadow-sm shadow-accent/10"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
+                aria-label={item.label}
+                aria-current={activeTab === item.id ? "page" : undefined}
               >
                 {item.label}
-                {activeTab === item.id && (
-                  <span className="absolute bottom-1 left-1/2 h-0.5 w-6 -translate-x-1/2 rounded-full bg-accent" />
-                )}
               </button>
             ))}
           </div>
 
-          {/* Desktop CTA */}
-          <div className="hidden items-center gap-3 md:flex">
+          <div className="hidden items-center gap-2 md:flex">
             <Button
               variant="outline"
               size="sm"
-              className="rounded-xl border-border/50 bg-transparent text-foreground hover:bg-secondary"
+              className="rounded-lg border-white/[0.06] bg-transparent text-sm text-muted-foreground hover:bg-white/5 hover:text-foreground"
               onClick={() => onTabChange("journal")}
+              aria-label="Добавить сделку"
             >
               Добавить сделку
             </Button>
             <Button
               size="sm"
-              className="rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
+              className="rounded-lg bg-accent text-white text-sm hover:bg-accent/90 shadow-lg shadow-accent/25"
               onClick={() => onTabChange("dashboard")}
+              aria-label="Перейти к дашборду"
             >
               Дашборд
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-lg border-white/[0.08] bg-white/5 text-xs text-white/80 hover:bg-white/10"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.location.href = PRO_URL
+                }
+              }}
+            >
+              TradeLog Pro
+            </Button>
           </div>
 
-          {/* Mobile menu toggle */}
           <button
             type="button"
             className="md:hidden text-foreground p-2"
             onClick={() => setMobileOpen(!mobileOpen)}
-            aria-label="Toggle menu"
+            aria-label={mobileOpen ? "Закрыть меню" : "Открыть меню"}
+            aria-expanded={mobileOpen}
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
       </div>
 
-      {/* Mobile menu */}
-      {mobileOpen && (
-        <div className="glass-strong border-t border-border/30 md:hidden animate-fade-in">
+      {mobileOpen ? (
+        <div className="border-t border-white/[0.04] bg-[hsl(240,10%,4%)]/95 backdrop-blur-2xl md:hidden animate-fade-in">
           <div className="flex flex-col gap-1 p-4">
             {navItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => {
-                  onTabChange(item.id)
-                  setMobileOpen(false)
-                }}
+                onClick={() => { onTabChange(item.id); setMobileOpen(false) }}
                 className={cn(
-                  "rounded-xl px-4 py-3 text-left text-sm font-medium transition-all",
+                  "rounded-lg px-4 py-3 text-left text-sm font-medium transition-all",
                   activeTab === item.id
-                    ? "bg-accent/10 text-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                    ? "bg-accent/15 text-white"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
                 )}
               >
                 {item.label}
               </button>
             ))}
-            <div className="mt-3 flex gap-2 border-t border-border/20 pt-3">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1 rounded-xl"
-                onClick={() => { onTabChange("journal"); setMobileOpen(false) }}
-              >
+            <div className="mt-3 flex gap-2 border-t border-white/[0.04] pt-3">
+              <Button variant="outline" size="sm" className="flex-1 rounded-lg border-white/[0.06]" onClick={() => { onTabChange("journal"); setMobileOpen(false) }} aria-label="Добавить сделку">
                 Добавить сделку
               </Button>
-              <Button
-                size="sm"
-                className="flex-1 rounded-xl bg-accent"
-                onClick={() => { onTabChange("dashboard"); setMobileOpen(false) }}
-              >
+              <Button size="sm" className="flex-1 rounded-lg bg-accent" onClick={() => { onTabChange("dashboard"); setMobileOpen(false) }} aria-label="Дашборд">
                 Дашборд
               </Button>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </nav>
   )
 }

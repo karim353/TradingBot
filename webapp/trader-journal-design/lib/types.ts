@@ -37,6 +37,8 @@ export interface Stats {
   totalTrades: number
   winRate: number
   totalPnl: number
+  winSum: number
+  lossSum: number
   avgRR: number
   bestTrade: number
   worstTrade: number

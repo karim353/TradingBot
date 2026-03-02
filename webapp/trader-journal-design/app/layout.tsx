@@ -1,12 +1,16 @@
 import React from "react"
 import type { Metadata, Viewport } from "next"
-import { Inter, JetBrains_Mono } from "next/font/google"
-import { Toaster } from "sonner"
+import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google"
+import { ClientToaster } from "@/components/client-toaster"
 
 import "./globals.css"
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
-const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' })
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-sans",
+  display: "swap",
+})
+const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
 export const metadata: Metadata = {
   title: 'TradeVault | Трейдинг-журнал',
@@ -23,10 +27,10 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ru" className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="font-sans antialiased min-h-screen bg-background text-foreground subpixel-antialiased">
+    <html lang="ru" className={`${plusJakarta.variable} ${jetbrainsMono.variable}`}>
+      <body className="font-sans antialiased min-h-screen bg-background text-foreground">
         {children}
-        <Toaster theme="dark" position="top-right" />
+        <ClientToaster />
       </body>
     </html>
   )
